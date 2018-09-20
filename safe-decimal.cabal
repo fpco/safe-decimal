@@ -18,25 +18,27 @@ source-repository head
   location: https://github.com/fpco/safe-decimal
 
 library
-  exposed-modules: Numeric.ArithM
-                 , Numeric.Decimal
+  exposed-modules: Numeric.Decimal
   other-modules: Numeric.Decimal.Internal
   hs-source-dirs: src
   build-depends: base >=4.7 && <5
-               , scientific
-               , deepseq
                , aeson
+               , deepseq
+               , scientific
+  ghc-options: -Wall
   default-language: Haskell2010
 
--- test-suite tests
---   type: exitcode-stdio-1.0
---   main-is: Spec.hs
---   other-modules: Paths_decimal64
---   hs-source-dirs: test
---   ghc-options: -threaded -rtsopts -with-rtsopts=-N
---   build-depends: base >=4.7 && <5
---                , decimal
---   default-language: Haskell2010
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules: Numeric.DecimalSpec
+  hs-source-dirs: tests
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends: base >=4.7 && <5
+               , safe-decimal
+               , QuickCheck
+               , hspec
+  default-language: Haskell2010
 
 benchmark bench
   type:                exitcode-stdio-1.0
@@ -45,6 +47,7 @@ benchmark bench
   ghc-options:         -threaded -O2
   build-depends:       base
                      , safe-decimal
+                     , scientific
                      , decimal-arithmetic
                      , Decimal
                      , criterion

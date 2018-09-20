@@ -5,20 +5,24 @@ module Main where
 import           Control.Exception
 import           Control.Monad
 import           Criterion.Main
+import           Data.Coerce
 import qualified "Decimal" Data.Decimal               as Decimal
 import           Data.Foldable
 import           Data.Int
 import           Data.Maybe
 import           Data.Ratio
-import           Numeric.ArithM
-import qualified "safe-decimal" Numeric.Decimal            as SafeDecimal
+import           Data.Scientific
 import qualified "decimal-arithmetic" Numeric.Decimal as DecimalArithmetic
+import qualified "safe-decimal" Numeric.Decimal       as SafeDecimal
 import           System.Random                        (mkStdGen, randoms)
 
-type SafeDecimal' = SafeDecimal.Decimal64 SafeDecimal.RoundHalfUp 5
+type SafeDecimal = SafeDecimal.Decimal SafeDecimal.RoundHalfUp 5 Int64
 
-toSafeDecimal :: Integer -> SafeDecimal'
-toSafeDecimal = SafeDecimal.toDecimal . tryArithM . fromInteger
+tryArith :: Either ArithException SafeDecimal -> SafeDecimal
+tryArith = either throw id
+
+toSafeDecimal :: Integer -> SafeDecimal
+toSafeDecimal = tryArith . fromInteger
 
 
 toDecimalRaw :: Integer -> Decimal.DecimalRaw Int
@@ -29,8 +33,8 @@ toDecimalArithmetic :: Integer -> DecimalArithmetic.Decimal64
 toDecimalArithmetic = fromRational . (% 100000)
 
 
-sumSafeDecimal' :: Foldable t => t SafeDecimal' -> SafeDecimal'
-sumSafeDecimal' = tryArithM . SafeDecimal.sumDecimal
+sumSafeDecimal :: (Functor t, Foldable t) => t SafeDecimal -> SafeDecimal
+sumSafeDecimal = tryArith . sum . fmap Right
 
 sample :: [Int32]
 sample =
@@ -42,7 +46,7 @@ sample =
 
 main :: IO ()
 main = do
-  let ls = map (toInteger . abs) sample
+  let ls = map (toInteger . abs) sample -- positive integers [0..2^32]
   defaultMain
     [ bgroup
         "wrap Integer"
@@ -52,13 +56,7 @@ main = do
         ]
     , bgroup
         "fromInteger"
-        [ env
-            (return ls)
-            (bench "decimal64" . nf (map (fromInteger :: Integer -> ArithM SafeDecimal')))
-        , env
-            (return ls)
-            (bench "decimal64'" .
-             nf (map (tryArithM . (fromInteger :: Integer -> ArithM SafeDecimal'))))
+        [ env (return ls) (bench "decimal64" . nf (map toSafeDecimal))
         , env
             (return ls)
             (bench "Decimal" . nf (map (fromInteger :: Integer -> Decimal.DecimalRaw Int)))
@@ -78,9 +76,19 @@ main = do
           -- env (return ls) (bench "Integer'" . nf (foldl' (+) 0))
         -- ,
         [ env
+            (return ls)
+            (bench "[Integer]" . nf (foldl' (+) 0))
+        , env
             (return (map (fromInteger :: Integer -> Int64) ls))
             (bench "[Int64]" . nf (foldl' (+) 0))
-        , env (return (map toSafeDecimal ls)) (bench "[Decimal]/decimal64" . nf sumSafeDecimal')
+        , env
+            (return (map (`scientific` 5) ls))
+            (bench "[Scientific]" . nf (foldl' (+) 0))
+        , env
+            (return
+               ((coerce :: [Integer] -> [SafeDecimal.Decimal SafeDecimal.RoundHalfUp 5 Integer]) ls))
+            (bench "[SafeDecimal]/Integer" . nf (foldl' (+) 0))
+        , env (return (map toSafeDecimal ls)) (bench "[SafeDecimal]/Int64" . nf sumSafeDecimal)
         , env (return (map toDecimalRaw ls)) (bench "[Decimal]/Decimal" . nf (foldl' (+) 0))
         , env
             (return (map toDecimalArithmetic ls))
