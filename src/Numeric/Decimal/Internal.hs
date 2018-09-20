@@ -138,17 +138,22 @@ instance (Round r, Integral p, Bounded p, KnownNat s) =>
 -- | Add two bounded numbers while checking for `Overflow`/`Underflow`
 plusBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
 plusBounded x y
-  | (x > 0 && y > 0 && x > maxBound - y) = Left Overflow
-  | (x < 0 && y < 0 && x < minBound - y) = Left Underflow
+  | (sameSig && sigX ==  1 && x > maxBound - y) = Left Overflow
+  | (sameSig && sigX == -1 && x < minBound - y) = Left Underflow
   | otherwise = Right (x + y)
+  where
+    sigX = signum x
+    sigY = signum y
+    sameSig = sigX == sigY
 {-# INLINABLE plusBounded #-}
 
 -- | Subtract two bounded numbers while checking for `Overflow`/`Underflow`
 minusBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
 minusBounded x y
-  | (x > 0 && y < 0 && x > maxBound + y) = Left Overflow
-  | (x < 0 && y > 0 && x < minBound + y) = Left Underflow
+  | (sigY == -1 && x > maxBound + y) = Left Overflow
+  | (sigY ==  1 && x < minBound + y) = Left Underflow
   | otherwise = Right (x - y)
+  where sigY = signum y
 {-# INLINABLE minusBounded #-}
 
 
@@ -189,44 +194,6 @@ timesDecimal (Decimal x) (Decimal y) = Decimal <$> timesBounded x y
 {-# INLINABLE timesDecimal #-}
 
 
--- type family Max (s1 :: Nat) (s2 :: Nat) where
---   Max 0 b = b
---   Max a b = If (a <=? b) b a
-
--- -- | Multiply two decimal numbers, adjusting their scale at the type level as well.
--- plusDecimal ::
---      forall r p s s1 s1 . (Num p, Ord p, Integral p, Bounded p, s ~ (Max s1 s2))
---   => Decimal r s1 p
---   -> Decimal r s2 p
---   -> Either ArithException (Decimal r s p)
--- plusDecimal (Decimal x) (Decimal y) = Decimal <$> plusBounded x y
--- {-# INLINABLE plusDecimal #-}
-
-
-
--- -- | Just like `sum` but for `Decimal`.
--- sumDecimal :: Foldable t => t (Decimal s) -> Either DecimalError (Decimal s)
--- sumDecimal = foldM (+$) (Decimal 0)
-
-
--- quotRemDecimal :: Decimal s -> Int -> Either DecimalError (Decimal s, Decimal s)
--- quotRemDecimal (Decimal x) y
---   | y == 0 =
---     Left $
---     makeArithError
---       DivideByZero
---       "quotRemDecimal"
---       ("Division by zero")
---   | y < 0 =
---     Left $
---     makeArithError
---       Underflow
---       "quotRemDecimal"
---       ("Division by a negative number: " ++ show y)
---   | otherwise =
---     Right $ (Decimal *** Decimal) (x `quotRem` fromIntegral y)
-
-
 
 instance (Integral p, KnownNat s) => Show (Decimal r s p) where
   show d@(Decimal a)
@@ -236,29 +203,6 @@ instance (Integral p, KnownNat s) => Show (Decimal r s p) where
     where s = getScale d
           fmt = "%u.%0" ++ show s ++ "u"
           (q, r) = quotRem a (10 ^ s)
-
-
-
-
--- sumDecimal :: (Bounded p, Num p, Ord p, Show p, Foldable t) => t (Decimal r s p) -> ArithM (Decimal r s p)
--- sumDecimal = foldM (liftM2Decimal plusBounded) (Decimal 0)
-
-
--- -- | Multiplication follows common round ur s ptrategy, therefore it is no longer associative.
--- instance KnownNat s => Num (Decimal s) where
---   (+) x y = either throw id (x +$ y)
---   (-) x y = either throw id (x -$ y)
---   (*) x y = roundHalfUp (either throw id (x *$ y))
---   negate x = throw $ negativeDecimalError "negate" x
---   abs = id
---   signum _ = 1
---   fromInteger = either throw id . fromIntegralDecimal
-
--- negativeDecimalError :: Show a => String -> a -> DecimalError
--- negativeDecimalError fName x =
---   makeArithError Underflow fName ("Negative decimal numbers are not supported: " ++ show x)
-
-
 
 
 

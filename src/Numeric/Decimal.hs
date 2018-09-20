@@ -51,7 +51,10 @@ plusDecimal (Decimal x) (Decimal y) = Decimal <$> plusBounded x y
 {-# INLINABLE plusDecimal #-}
 
 
-sumDecimal :: (Integral p, Bounded p) => [Decimal r s p] -> Either ArithException (Decimal r s p)
+sumDecimal ::
+     (Foldable t, Integral p, Bounded p)
+  => t (Decimal r s p)
+  -> Either ArithException (Decimal r s p)
 sumDecimal = foldM plusDecimal (Decimal 0)
 {-# INLINABLE sumDecimal #-}
 

@@ -34,7 +34,7 @@ toDecimalArithmetic = fromRational . (% 100000)
 
 
 sumSafeDecimal :: (Functor t, Foldable t) => t SafeDecimal -> SafeDecimal
-sumSafeDecimal = tryArith . sum . fmap Right
+sumSafeDecimal = tryArith . SafeDecimal.sumDecimal -- sum . fmap Right
 
 sample :: [Int32]
 sample =

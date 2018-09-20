@@ -63,8 +63,8 @@ prop_timesBounded excs (Extremum x) (Extremum y) =
     then Right res === resBounded
     else disjoin (fmap ((resBounded ===) . Left) excs)
   where
-    res = x - y
-    withinBounds = toInteger res == toInteger x - toInteger y
+    res = x * y
+    withinBounds = toInteger res == toInteger x * toInteger y
     resBounded = timesBounded x y
 
 prop_fromIntegerBounded ::
