@@ -26,6 +26,8 @@ module Numeric.Decimal.Internal
   , minusBounded
   , timesBounded
   , fromIntegerBounded
+  , divBounded
+  , quotBounded
   ) where
 
 
@@ -156,20 +158,40 @@ minusBounded x y
   where sigY = signum y
 {-# INLINABLE minusBounded #-}
 
+-- | Add two decimal numbers while checking for `Overflow`
+divBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
+divBounded x y
+  | y == 0 = Left DivideByZero
+  | sigY == -1 && y == -1 && x == minBound = Left Overflow
+    -------------------- ^ Here we deal with special case overflow when (minBound * (-1))
+  | otherwise = Right (x `div` y)
+  where
+    sigY = signum y
+
+
+-- | Add two decimal numbers while checking for `Overflow`
+quotBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
+quotBounded x y
+  | y == 0 = Left DivideByZero
+  | sigY == -1 && y == -1 && x == minBound = Left Overflow
+    -------------------- ^ Here we deal with special case overflow when (minBound * (-1))
+  | otherwise = Right (x `quot` y)
+  where
+    sigY = signum y
+
 
 -- | Add two decimal numbers while checking for `Overflow`
 timesBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
 timesBounded x y
-  | y == 0 = Right 0
-  | (x < 0 && y == minBound) ||
-  ----------- ^ Here we deal with Overflow when (minBound * (-1))
-      (y > 0 && maxBoundDivY < x) || (y < 0 && x < maxBoundDivY) = Left Overflow
-  | (y > 0 && minBoundDivY > x) || (y + 1 < 0 && x > minBoundDivY) = Left Underflow
-  ----------------------------------- ^ Here we also deal with Overflow when (minBound * (-1))
+  | (sigY == -1 && y == -1 && x == minBound) = Left Overflow
+  | (signum x == -1 && x == -1 && y == minBound) = Left Overflow
+  | (sigY ==  1 && (minBoundQuotY > x || x > maxBoundQuotY)) = Left Underflow
+  | (sigY == -1 && y /= -1 && (minBoundQuotY < x || x < maxBoundQuotY)) = Left Overflow
   | otherwise = Right (x * y)
   where
-    maxBoundDivY = maxBound `div` y
-    minBoundDivY = minBound `div` y
+    sigY = signum y
+    maxBoundQuotY = maxBound `quot` y
+    minBoundQuotY = minBound `quot` y
 {-# INLINABLE timesBounded #-}
 
 
