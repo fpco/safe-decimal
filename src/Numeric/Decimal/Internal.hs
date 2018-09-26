@@ -13,8 +13,9 @@ module Numeric.Decimal.Internal
   , splitDecimal
   , getScale
   -- * Conversion
-  , fromScientific
   , toScientific
+  , fromScientific
+  , fromScientificBounded
   , fromNum
   -- * Helpers
   , timesDecimal
@@ -26,6 +27,7 @@ module Numeric.Decimal.Internal
   , minusBounded
   , timesBounded
   , fromIntegerBounded
+  , fromIntegerScaleBounded
   , divBounded
   , quotBounded
   ) where
@@ -47,8 +49,8 @@ newtype Decimal r (s :: Nat) p = Decimal p
 instance Applicative (Decimal r s) where
   pure = Decimal
   {-# INLINABLE pure #-}
-  liftA2 = liftDecimal2
-  {-# INLINABLE liftA2 #-}
+  (<*>) (Decimal f) (Decimal x) = Decimal (f x)
+  {-# INLINABLE (<*>) #-}
 
 
 class Round r where
@@ -133,7 +135,7 @@ instance (Round r, Integral p, Bounded p, KnownNat s) =>
   {-# INLINABLE signum #-}
   abs = fmap (liftDecimal abs)
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerBounded
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
 
@@ -205,6 +207,19 @@ fromIntegerBounded x
   | otherwise = Right $ fromInteger x
 {-# INLINABLE fromIntegerBounded #-}
 
+fromIntegerScaleBounded ::
+     forall a s. (Integral a, Bounded a, KnownNat s)
+  => Proxy s
+  -> Integer
+  -> Either ArithException a
+fromIntegerScaleBounded ps x
+  | xs > toInteger (maxBound :: a) = Left Overflow
+  | xs < toInteger (minBound :: a) = Left Underflow
+  | otherwise = Right $ fromInteger xs
+  where s = natVal ps
+        xs = x * (10 ^ s)
+{-# INLINABLE fromIntegerScaleBounded #-}
+
 
 -- | Multiply two decimal numbers, adjusting their scale at the type level as well.
 timesDecimal ::
@@ -227,74 +242,39 @@ instance (Integral p, KnownNat s) => Show (Decimal r s p) where
           (q, r) = quotRem a (10 ^ s)
 
 
-
--- -- | Construct a decimal number from the whole number and the fractional part.  Be careful with
--- -- trailing zeros in factional part, since depending on the scale of decimal it will mean different
--- -- things, eg. ...
--- --
--- -- >>> decimal 5 60 :: Either DecimalError (Decimal 2)
--- -- Right 5.60
--- -- >>> decimal 5 60 :: Either DecimalError (Decimal 3)
--- -- Right 5.060
--- --
--- decimal ::
---      forall s x y. (KnownNat s, Integral x, Integral y)
---   => x
---   -> y
---   -> Either DecimalError (Decimal s)
--- decimal whole frac
---   | whole /= 0 && 18 < s =
---     Left $ makeArithError Overflow "decimal" ("Scaling factor is too big " ++ show s)
---   | otherwise = do
---     x@(Decimal w) <- fromIntegralDecimal whole
---     y@(Decimal f) <- toDecimal frac
---     if f > scale
---       then Left $
---            makeArithError
---              Overflow
---              "decimal"
---              ("Fractional part " ++
---               show (toInteger frac) ++ " doesn't fit into available decimal places: " ++ show s)
---       else x +$ y
---   where
---     scale = 10 ^ s :: Int64
---     !s = getScale (Proxy :: Proxy s)
-
-
--- fromIntegralDecimal ::
---      forall s a. (KnownNat s, Integral p)
---   => a
---   -> Either DecimalError (Decimal s p)
--- fromIntegralDecimal whole
---   | fromIntegral (maxDecimal `div` scale) < whole =
---     Left $
---     makeArithError
---       Overflow
---       "fromIntegralDecimal"
---       ("Number is too big for the Decimal64 " ++ show (toInteger whole))
---   | otherwise = toDecimal (fromIntegral whole * scale)
---   where
---     !scale = 10 ^ getScale (Proxy :: Proxy s) :: Int64
-
---addDecimal (Decimal x) (Decimal y)
-
-
-
 ---- Scientific
 
+-- | Convert Decimal to Scientific
 toScientific :: (Integral p, KnownNat s) => Decimal r s p -> Scientific
 toScientific dec = scientific (toInteger (unwrapDecimal dec)) (negate (getScale dec))
 
-
-fromScientific :: forall r s . KnownNat s => Scientific -> Maybe (Decimal r s Integer)
+-- | Convert Scientific to Decimal without loss of precision. Will return `Left` `Underflow` if
+-- `Scientific` has too many decimal places, more than `Decimal` scaling is capable to handle.
+fromScientific :: forall r s . KnownNat s => Scientific -> Either ArithException (Decimal r s Integer)
 fromScientific num
-  | point10 > s = Nothing
-  | otherwise = Just (fromNum (coeff ^ (s - point10)))
+  | point10 > s = Left Underflow
+  | otherwise = Right (Decimal (coefficient num * 10 ^ (s - point10)))
   where
       s = natVal (Proxy :: Proxy s)
-      numNormal = normalize num
-      coeff = coefficient numNormal
-      point10 = toInteger (negate (base10Exponent numNormal))
+      point10 = toInteger (negate (base10Exponent num))
+
+-- | Convert from Scientific to Decimal while checking for Overflow/Underflow 
+fromScientificBounded ::
+     forall r s p. (Integral p, Bounded p, KnownNat s)
+  => Scientific
+  -> Either ArithException (Decimal r s p)
+fromScientificBounded num = do
+  Decimal integer :: Decimal r s Integer <- fromScientific num
+  Decimal <$> fromIntegerBounded integer
+
+
+-- TODO: Convert with Rounding
+-- fromScientificRounded ::
+--      forall r s. (Round r, KnownNat s)
+--   => Scientific
+--   -> ArithException (Decimal r s Integer)
+
+
 
 -- instance KnownNat s => ToJSON (Decimal s) where
 --   toJSON (Decimal c) =
@@ -315,18 +295,6 @@ fromScientific num
 
 -- Parsing
 
-
--- instance KnownNat s => Show (Decimal s) where
---   show (Decimal a)
---     | s == 0 = show a
---     | r == 0 = printf ("%u." ++ replicate s '0') q
---     | otherwise = printf fmt q r
---     where s = fromIntegral (natVal (Proxy :: Proxy s)) :: Int
---           fmt = "%u.%0" ++ show s ++ "u"
---           (q, r) = quotRem a (10 ^ s)
-
--- showDecimal :: KnownNat s => Decimal s -> T.Text
--- showDecimal = T.pack . show
 
 -- parseDecimal :: forall s. KnownNat s => T.Text -> Either String (Decimal s)
 -- parseDecimal input

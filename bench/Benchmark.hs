@@ -16,7 +16,7 @@ import qualified "decimal-arithmetic" Numeric.Decimal as DecimalArithmetic
 import qualified "safe-decimal" Numeric.Decimal       as SafeDecimal
 import           System.Random                        (mkStdGen, randoms)
 
-type SafeDecimal = SafeDecimal.Decimal SafeDecimal.RoundHalfUp 5 Int64
+type SafeDecimal = SafeDecimal.Decimal SafeDecimal.RoundHalfUp 2 Int64
 
 tryArith :: Either ArithException SafeDecimal -> SafeDecimal
 tryArith = either throw id
@@ -26,7 +26,7 @@ toSafeDecimal = tryArith . fromInteger
 
 
 toDecimalRaw :: Integer -> Decimal.DecimalRaw Int
-toDecimalRaw = fromJust . Decimal.decimalConvert . Decimal.Decimal 5
+toDecimalRaw = fromJust . Decimal.decimalConvert . Decimal.Decimal 2
 
 
 toDecimalArithmetic :: Integer -> DecimalArithmetic.Decimal64
@@ -34,7 +34,7 @@ toDecimalArithmetic = fromRational . (% 100000)
 
 
 sumSafeDecimal :: (Functor t, Foldable t) => t SafeDecimal -> SafeDecimal
-sumSafeDecimal = tryArith . SafeDecimal.sumDecimal -- sum . fmap Right
+sumSafeDecimal = tryArith . SafeDecimal.sumDecimal
 
 sample :: [Int32]
 sample =
@@ -47,16 +47,12 @@ sample =
 main :: IO ()
 main = do
   let ls = map (toInteger . abs) sample -- positive integers [0..2^32]
+  print $ sum (map (fromInteger :: Integer -> Decimal.DecimalRaw Int) ls)
+  print $ SafeDecimal.sumDecimal (map toSafeDecimal ls)
   defaultMain
     [ bgroup
-        "wrap Integer"
-        [ env (return ls) (bench "decimal64" . nf (map toSafeDecimal))
-        , env (return ls) (bench "Decimal" . nf (map toDecimalRaw))
-        , env (return ls) (bench "decimal-arithmetic" . nf (map toDecimalArithmetic))
-        ]
-    , bgroup
         "fromInteger"
-        [ env (return ls) (bench "decimal64" . nf (map toSafeDecimal))
+        [ env (return ls) (bench "SafeDecimal64" . nf (map toSafeDecimal))
         , env
             (return ls)
             (bench "Decimal" . nf (map (fromInteger :: Integer -> Decimal.DecimalRaw Int)))
@@ -65,16 +61,8 @@ main = do
             (bench "decimal-arithmetic" .
              nf (map (fromInteger :: Integer -> DecimalArithmetic.Decimal64)))
         ]
-    -- , bgroup
-    --     "Decimal from two Ints"
-    --     [ env (return ls) (bench "decimal64" . nf (map toSafeDecimal))
-    --     , env (return ls) (bench "Decimal" . nf (map toDecimalRaw))
-    --     , env (return ls) (bench "decimal-arithmetic" . nf (map toDecimalArithmetic))
-    --     ]
     , bgroup
         "Sum"
-          -- env (return ls) (bench "Integer'" . nf (foldl' (+) 0))
-        -- ,
         [ env
             (return ls)
             (bench "[Integer]" . nf (foldl' (+) 0))
@@ -82,13 +70,13 @@ main = do
             (return (map (fromInteger :: Integer -> Int64) ls))
             (bench "[Int64]" . nf (foldl' (+) 0))
         , env
-            (return (map (`scientific` 5) ls))
-            (bench "[Scientific]" . nf (foldl' (+) 0))
-        , env
             (return
-               ((coerce :: [Integer] -> [SafeDecimal.Decimal SafeDecimal.RoundHalfUp 5 Integer]) ls))
+               ((coerce :: [Integer] -> [SafeDecimal.Decimal SafeDecimal.RoundHalfUp 2 Integer]) ls))
             (bench "[SafeDecimal]/Integer" . nf (foldl' (+) 0))
         , env (return (map toSafeDecimal ls)) (bench "[SafeDecimal]/Int64" . nf sumSafeDecimal)
+        , env
+            (return (map (`scientific` 2) ls))
+            (bench "[Scientific]" . nf (foldl' (+) 0))
         , env (return (map toDecimalRaw ls)) (bench "[Decimal]/Decimal" . nf (foldl' (+) 0))
         , env
             (return (map toDecimalArithmetic ls))

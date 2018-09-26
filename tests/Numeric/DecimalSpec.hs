@@ -1,18 +1,22 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Numeric.DecimalSpec (spec) where
 
-import Control.DeepSeq
-import           Control.Exception hiding (assert)
+import           Control.DeepSeq
+import           Control.Exception       hiding (assert)
 import           Data.Either
 import           Data.Int
 import           Data.Proxy
+import           Data.Scientific
 import           Data.Typeable
 import           Data.Word
+import           GHC.TypeLits
 import           Numeric.Decimal
 import           Test.Hspec
 import           Test.QuickCheck
 import           Test.QuickCheck.Monadic
-
 
 -- | Values generated will usually be somewhere close to the bounds.
 newtype Extremum a = Extremum a deriving Show
@@ -22,6 +26,9 @@ instance (Arbitrary a, Bounded a, Integral a) => Arbitrary (Extremum a) where
     x <- arbitrary
     frequency $
       [(f, pure (Extremum v)) | (f, v) <- [(40, minBound - x), (40, maxBound - x), (20, x)]]
+
+instance (Arbitrary p) => Arbitrary (Decimal r s p) where
+  arbitrary = fmap pure arbitrary
 
 prop_plusBounded ::
      (Arbitrary a, Show a, Integral a, Bounded a)
@@ -137,6 +144,39 @@ specBouned px = do
     it "quotBounded" $
       property (prop_quotBounded :: Extremum a -> Extremum a -> Property)
 
+
+showType :: forall t . Typeable t => Proxy t -> String
+showType _ = (showsTypeRep (typeRep (Proxy :: Proxy t))) ""
+
+prop_toFromScientific ::
+     (Arbitrary p, Integral p, KnownNat s) => Proxy s -> Proxy (r, p) -> Decimal r s p -> Property
+prop_toFromScientific _ _ d =
+  (Right d === (fmap fromInteger <$> fromScientific (toScientific d))) .&&.
+  (Right d === (fmap fromInteger <$> fromScientific (normalize (toScientific d))))
+
+prop_toFromScientificBounded ::
+     (Arbitrary p, Integral p, Bounded p, KnownNat s)
+  => Proxy s
+  -> Proxy (r, p)
+  -> Decimal r s p
+  -> Property
+prop_toFromScientificBounded _ _ d =
+  (Right d === (fromScientificBounded (toScientific d))) .&&.
+  (Right d === (fromScientificBounded (normalize (toScientific d))))
+
+
+specDecimal ::
+     forall r s p. (Typeable r, Typeable p, KnownNat s, Integral p, Bounded p, Arbitrary p)
+  => Proxy s
+  -> Proxy (r, p)
+  -> Spec
+specDecimal ps px = do
+  describe
+    ("Decimal " <> showType (Proxy :: Proxy r) <> " " <> show (natVal ps) <> " " <>
+     showType (Proxy :: Proxy p)) $ do
+    it "toFromScientific" $ property $ prop_toFromScientific ps px
+    it "toFromScientificBounded" $ property $ prop_toFromScientificBounded ps px
+
 spec :: Spec
 spec = do
   describe "Int" $ do
@@ -145,6 +185,7 @@ spec = do
     specBouned (Proxy :: Proxy Int16)
     specBouned (Proxy :: Proxy Int32)
     specBouned (Proxy :: Proxy Int64)
+    specDecimal (Proxy :: Proxy 4) (Proxy :: Proxy (RoundHalfUp, Int))
   describe "Word" $ do
     specBouned (Proxy :: Proxy Word)
     specBouned (Proxy :: Proxy Word8)
