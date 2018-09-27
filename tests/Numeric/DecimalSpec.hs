@@ -172,7 +172,7 @@ specDecimal ::
   -> Spec
 specDecimal ps px = do
   describe
-    ("Decimal " <> showType (Proxy :: Proxy r) <> " " <> show (natVal ps) <> " " <>
+    ("Decimal " ++ showType (Proxy :: Proxy r) ++ " " ++ show (natVal ps) ++ " " ++
      showType (Proxy :: Proxy p)) $ do
     it "toFromScientific" $ property $ prop_toFromScientific ps px
     it "toFromScientificBounded" $ property $ prop_toFromScientificBounded ps px
