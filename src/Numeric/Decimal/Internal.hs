@@ -20,6 +20,7 @@ module Numeric.Decimal.Internal
   , plusDecimal
   , minusDecimal
   , timesDecimal
+  , timesDecimalBounded
   , timesDecimalRounded
   , liftDecimal
   , liftDecimal2
@@ -35,6 +36,7 @@ module Numeric.Decimal.Internal
   , quotBounded
   ) where
 
+import Data.Ratio
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Exception
@@ -134,6 +136,22 @@ instance (Round r, KnownNat s) => Num (Decimal r s Integer) where
   fromInteger = fromNum
   {-# INLINABLE fromInteger #-}
 
+instance (Round r, KnownNat s) => Real (Decimal r s Integer) where
+  toRational (Decimal p) = p % natVal (Proxy :: Proxy s)
+  {-# INLINABLE toRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Decimal r s Integer) where
+  (/) (Decimal x) (Decimal y) = fromRational (x % y)
+  {-# INLINABLE (/) #-}
+  fromRational rational =
+    roundDecimal
+      (Decimal (numerator scaledRat `quot` denominator scaledRat) :: Decimal r (s + 1) Integer)
+    where
+      scaledRat = rational * (d % 1)
+      d = 10 ^ (natVal (Proxy :: Proxy s) + 1)
+  {-# INLINABLE fromRational #-}
+
+
 instance (Round r, Integral p, Bounded p, KnownNat s) =>
          Num (Either ArithException (Decimal r s p)) where
   (+) = bindM2 plusDecimal
@@ -148,6 +166,18 @@ instance (Round r, Integral p, Bounded p, KnownNat s) =>
   {-# INLINABLE abs #-}
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
+
+instance (Round r, Integral p, Bounded p, KnownNat s) =>
+         Fractional (Either ArithException (Decimal r s p)) where
+  (/) ex ey = do
+    x <- ex
+    y <- ey
+    -- TODO: Investigate a more efficient way to do safe division, without going through `Integer`
+    fromIntegerDecimalBounded (fmap toInteger x / fmap toInteger y)
+  {-# INLINABLE (/) #-}
+  fromRational = fromIntegerDecimalBounded . fromRational
+  {-# INLINABLE fromRational #-}
+
 
 
 -- | Add two bounded numbers while checking for `Overflow`/`Underflow`
@@ -200,13 +230,14 @@ timesBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
 timesBounded x y
   | (sigY == -1 && y == -1 && x == minBound) = Left Overflow
   | (signum x == -1 && x == -1 && y == minBound) = Left Overflow
-  | (sigY ==  1 && (minBoundQuotY > x || x > maxBoundQuotY)) = Left Underflow
-  | (sigY == -1 && y /= -1 && (minBoundQuotY < x || x < maxBoundQuotY)) = Left Overflow
+  | (sigY ==  1 && (minBoundQuotY > x || x > maxBoundQuotY)) = eitherOverUnder
+  | (sigY == -1 && y /= -1 && (minBoundQuotY < x || x < maxBoundQuotY)) = eitherOverUnder
   | otherwise = Right (x * y)
   where
     sigY = signum y
     maxBoundQuotY = maxBound `quot` y
     minBoundQuotY = minBound `quot` y
+    eitherOverUnder = Left $ if sigY == signum x then Overflow else Underflow
 {-# INLINABLE timesBounded #-}
 
 
@@ -234,6 +265,14 @@ fromIntegerScaleBounded ps x
 {-# INLINABLE fromIntegerScaleBounded #-}
 
 
+fromIntegerDecimalBounded ::
+     forall r s p. (Integral p, Bounded p)
+  => Decimal r s Integer
+  -> Either ArithException (Decimal r s p)
+fromIntegerDecimalBounded (Decimal x) = Decimal <$> fromIntegerBounded x
+{-# INLINABLE fromIntegerDecimalBounded #-}
+
+
 -- | Add two decimal numbers.
 plusDecimal ::
      (Eq p, Ord p, Num p, Bounded p)
@@ -252,14 +291,23 @@ minusDecimal ::
 minusDecimal (Decimal x) (Decimal y) = Decimal <$> minusBounded x y
 {-# INLINABLE minusDecimal #-}
 
--- | Multiply two decimal numbers, adjusting their scale at the type level as well.
-timesDecimal ::
+-- | Multiply two bounded decimal numbers, adjusting their scale at the type level as well.
+timesDecimalBounded ::
      (Integral p, Bounded p)
   => Decimal r s1 p
   -> Decimal r s2 p
   -> Either ArithException (Decimal r (s1 + s2) p)
-timesDecimal (Decimal x) (Decimal y) = Decimal <$> timesBounded x y
+timesDecimalBounded (Decimal x) (Decimal y) = Decimal <$> timesBounded x y
+{-# INLINABLE timesDecimalBounded #-}
+
+-- | Multiply two bounded decimal numbers, adjusting their scale at the type level as well.
+timesDecimal ::
+     Decimal r s1 Integer
+  -> Decimal r s2 Integer
+  -> Decimal r (s1 + s2) Integer
+timesDecimal (Decimal x) (Decimal y) = Decimal (x * y)
 {-# INLINABLE timesDecimal #-}
+
 
 -- | Multiply two decimal numbers, while rounding the result according to the rounding strategy.
 timesDecimalRounded ::
@@ -267,7 +315,8 @@ timesDecimalRounded ::
   => Decimal r s p
   -> Decimal r s p
   -> Either ArithException (Decimal r s p)
-timesDecimalRounded dx dy = roundDecimal <$> timesDecimal dx dy
+timesDecimalRounded dx dy =
+  fromIntegerDecimalBounded $ roundDecimal $ timesDecimal (fmap toInteger dx) (fmap toInteger dy)
 {-# INLINABLE timesDecimalRounded #-}
 
 
