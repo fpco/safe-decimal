@@ -6,6 +6,7 @@ module Numeric.DecimalSpec (spec) where
 
 import           Control.DeepSeq
 import           Control.Exception       hiding (assert)
+import           Control.Monad
 import           Data.Either
 import           Data.Int
 import           Data.Proxy
@@ -29,6 +30,10 @@ instance (Arbitrary a, Bounded a, Integral a) => Arbitrary (Extremum a) where
 
 instance (Arbitrary p) => Arbitrary (Decimal r s p) where
   arbitrary = fmap pure arbitrary
+
+showType :: forall t . Typeable t => Proxy t -> String
+showType _ = (showsTypeRep (typeRep (Proxy :: Proxy t))) ""
+
 
 prop_plusBounded ::
      (Arbitrary a, Show a, Integral a, Bounded a)
@@ -143,39 +148,67 @@ specBouned px = do
       property (prop_divBounded :: Extremum a -> Extremum a -> Property)
     it "quotBounded" $
       property (prop_quotBounded :: Extremum a -> Extremum a -> Property)
+  specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 0) px
+  specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 1) px
+  specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 2) px
+  let maxLen = length (show (maxBound :: a))
+  when (maxLen >= 3) $ do
+    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 3) px
+  when (maxLen >= 4) $ do
+    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 4) px
+  when (maxLen >= 5) $ do
+    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 5) px
+  when (maxLen >= 19) $ do
+    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 19) px
 
+specBoundedDecimal ::
+     forall r s p. (Typeable r, Typeable p, KnownNat s, Show p, Integral p, Bounded p, Arbitrary p)
+  => Proxy r
+  -> Proxy s
+  -> Proxy p
+  -> Spec
+specBoundedDecimal pr ps pp = do
+  describe
+    ("Decimal " ++ showType (Proxy :: Proxy r) ++ " " ++ show (natVal ps) ++ " " ++
+     showType (Proxy :: Proxy p)) $ do
+    it "toFromScientific" $ property $ prop_toFromScientific pr ps pp
+    it "toFromScientificBounded" $ property $ prop_toFromScientificBounded pr ps pp
+    it "showParseBounded" $ property $ prop_showParseBouded pr ps pp
 
-showType :: forall t . Typeable t => Proxy t -> String
-showType _ = (showsTypeRep (typeRep (Proxy :: Proxy t))) ""
 
 prop_toFromScientific ::
-     (Arbitrary p, Integral p, KnownNat s) => Proxy s -> Proxy (r, p) -> Decimal r s p -> Property
-prop_toFromScientific _ _ d =
+     (Arbitrary p, Integral p, KnownNat s)
+  => Proxy r
+  -> Proxy s
+  -> Proxy p
+  -> Decimal r s p
+  -> Property
+prop_toFromScientific _ _ _ d =
   (Right d === (fmap fromInteger <$> fromScientific (toScientific d))) .&&.
   (Right d === (fmap fromInteger <$> fromScientific (normalize (toScientific d))))
 
 prop_toFromScientificBounded ::
      (Arbitrary p, Integral p, Bounded p, KnownNat s)
-  => Proxy s
-  -> Proxy (r, p)
+  => Proxy r
+  -> Proxy s
+  -> Proxy p
   -> Decimal r s p
   -> Property
-prop_toFromScientificBounded _ _ d =
+prop_toFromScientificBounded _ _ _ d =
   (Right d === (fromScientificBounded (toScientific d))) .&&.
   (Right d === (fromScientificBounded (normalize (toScientific d))))
 
-
-specDecimal ::
-     forall r s p. (Typeable r, Typeable p, KnownNat s, Integral p, Bounded p, Arbitrary p)
-  => Proxy s
-  -> Proxy (r, p)
-  -> Spec
-specDecimal ps px = do
-  describe
-    ("Decimal " ++ showType (Proxy :: Proxy r) ++ " " ++ show (natVal ps) ++ " " ++
-     showType (Proxy :: Proxy p)) $ do
-    it "toFromScientific" $ property $ prop_toFromScientific ps px
-    it "toFromScientificBounded" $ property $ prop_toFromScientificBounded ps px
+prop_showParseBouded ::
+     (Arbitrary p, Show p, Integral p, Bounded p, KnownNat s)
+  => Proxy r
+  -> Proxy s
+  -> Proxy p
+  -> Decimal r s p
+  -> Property
+prop_showParseBouded _ _ _ d@(Decimal x) =
+  case parseDecimalBounded False (show d) of
+    Left err              -> error err
+    Right d'@(Decimal x') -> x === x' .&&. d === d'
 
 spec :: Spec
 spec = do
@@ -185,7 +218,6 @@ spec = do
     specBouned (Proxy :: Proxy Int16)
     specBouned (Proxy :: Proxy Int32)
     specBouned (Proxy :: Proxy Int64)
-    specDecimal (Proxy :: Proxy 4) (Proxy :: Proxy (RoundHalfUp, Int))
   describe "Word" $ do
     specBouned (Proxy :: Proxy Word)
     specBouned (Proxy :: Proxy Word8)

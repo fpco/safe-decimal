@@ -1,8 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeOperators              #-}
 module Numeric.Decimal.Internal
@@ -12,16 +14,17 @@ module Numeric.Decimal.Internal
   , unwrapDecimal
   , splitDecimal
   , getScale
-  -- * Conversion
-  , toScientific
-  , fromScientific
-  , fromScientificBounded
   , fromNum
-  -- * Helpers
+  , parseDecimalBounded
+  -- * Algebra
+  , plusDecimal
+  , minusDecimal
   , timesDecimal
+  , timesDecimalRounded
   , liftDecimal
   , liftDecimal2
-  , bind2DecimalM
+  , bindM2Decimal
+  , bindM2
   -- * Bounded
   , plusBounded
   , minusBounded
@@ -32,19 +35,22 @@ module Numeric.Decimal.Internal
   , quotBounded
   ) where
 
-
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Exception
+import           Control.Monad
+import           Data.Char
+import           Data.Foldable       as F
+import           Data.List
 import           Data.Proxy
-import           Data.Scientific
+import           GHC.Generics        (Generic)
 import           GHC.TypeLits
 import           Text.Printf
 
 -- | Decimal number with custom precision (@p@) and type level scaling (@s@) parameter (i.e. number
 -- of digits after the decimal point). As well as the rounding (@r@) strategy to use
 newtype Decimal r (s :: Nat) p = Decimal p
-  deriving (Enum, Ord, Eq, NFData, Functor)
+  deriving (Enum, Ord, Eq, NFData, Functor, Generic)
 
 instance Applicative (Decimal r s) where
   pure = Decimal
@@ -89,17 +95,25 @@ liftDecimal2 :: (p1 -> p2 -> p3) -> Decimal r s p1 -> Decimal r s p2 -> Decimal 
 liftDecimal2 f (Decimal x) (Decimal y) = Decimal (f x y)
 {-# INLINABLE liftDecimal2 #-}
 
-bind2DecimalM ::
+bindM2Decimal ::
      Monad m
   => (p1 -> p2 -> m p)
   -> m (Decimal r1 s1 p1)
   -> m (Decimal r2 s2 p2)
   -> m (Decimal r s p)
-bind2DecimalM f dx dy = do
+bindM2Decimal f dx dy = do
   Decimal x <- dx
   Decimal y <- dy
   Decimal <$> f x y
-{-# INLINABLE bind2DecimalM #-}
+{-# INLINABLE bindM2Decimal #-}
+
+
+bindM2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
+bindM2 f mx my = do
+  x <- mx
+  y <- my
+  f x y
+{-# INLINABLE bindM2 #-}
 
 
 instance Bounded p => Bounded (Decimal r s p) where
@@ -122,25 +136,22 @@ instance (Round r, KnownNat s) => Num (Decimal r s Integer) where
 
 instance (Round r, Integral p, Bounded p, KnownNat s) =>
          Num (Either ArithException (Decimal r s p)) where
-  (+) = bind2DecimalM plusBounded
+  (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
-  (-) = bind2DecimalM minusBounded
+  (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) adx ady = do
-    dx <- adx
-    dy <- ady
-    roundDecimal <$> timesDecimal dx dy
+  (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (liftDecimal signum)
+  signum = fmap (fmap signum)
   {-# INLINABLE signum #-}
-  abs = fmap (liftDecimal abs)
+  abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
 
 -- | Add two bounded numbers while checking for `Overflow`/`Underflow`
-plusBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
+plusBounded :: (Eq a, Ord a, Num a, Bounded a) => a -> a -> Either ArithException a
 plusBounded x y
   | (sameSig && sigX ==  1 && x > maxBound - y) = Left Overflow
   | (sameSig && sigX == -1 && x < minBound - y) = Left Underflow
@@ -152,7 +163,7 @@ plusBounded x y
 {-# INLINABLE plusBounded #-}
 
 -- | Subtract two bounded numbers while checking for `Overflow`/`Underflow`
-minusBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
+minusBounded :: (Eq a, Ord a, Num a, Bounded a) => a -> a -> Either ArithException a
 minusBounded x y
   | (sigY == -1 && x > maxBound + y) = Left Overflow
   | (sigY ==  1 && x < minBound + y) = Left Underflow
@@ -160,26 +171,28 @@ minusBounded x y
   where sigY = signum y
 {-# INLINABLE minusBounded #-}
 
--- | Add two decimal numbers while checking for `Overflow`
+-- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
 divBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
 divBounded x y
   | y == 0 = Left DivideByZero
   | sigY == -1 && y == -1 && x == minBound = Left Overflow
-    -------------------- ^ Here we deal with special case overflow when (minBound * (-1))
+    ------------------- ^ Here we deal with special case overflow when (minBound * (-1))
   | otherwise = Right (x `div` y)
   where
     sigY = signum y
+{-# INLINABLE divBounded #-}
 
 
--- | Add two decimal numbers while checking for `Overflow`
+-- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
 quotBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
 quotBounded x y
   | y == 0 = Left DivideByZero
   | sigY == -1 && y == -1 && x == minBound = Left Overflow
-    -------------------- ^ Here we deal with special case overflow when (minBound * (-1))
+    ------------------- ^ Here we deal with special case overflow when (minBound * (-1))
   | otherwise = Right (x `quot` y)
   where
     sigY = signum y
+{-# INLINABLE quotBounded #-}
 
 
 -- | Add two decimal numbers while checking for `Overflow`
@@ -221,6 +234,24 @@ fromIntegerScaleBounded ps x
 {-# INLINABLE fromIntegerScaleBounded #-}
 
 
+-- | Add two decimal numbers.
+plusDecimal ::
+     (Eq p, Ord p, Num p, Bounded p)
+  => Decimal r s p
+  -> Decimal r s p
+  -> Either ArithException (Decimal r s p)
+plusDecimal (Decimal x) (Decimal y) = Decimal <$> plusBounded x y
+{-# INLINABLE plusDecimal #-}
+
+-- | Subtract two decimal numbers.
+minusDecimal ::
+     (Eq p, Ord p, Num p, Bounded p)
+  => Decimal r s p
+  -> Decimal r s p
+  -> Either ArithException (Decimal r s p)
+minusDecimal (Decimal x) (Decimal y) = Decimal <$> minusBounded x y
+{-# INLINABLE minusDecimal #-}
+
 -- | Multiply two decimal numbers, adjusting their scale at the type level as well.
 timesDecimal ::
      (Integral p, Bounded p)
@@ -230,42 +261,29 @@ timesDecimal ::
 timesDecimal (Decimal x) (Decimal y) = Decimal <$> timesBounded x y
 {-# INLINABLE timesDecimal #-}
 
+-- | Multiply two decimal numbers, while rounding the result according to the rounding strategy.
+timesDecimalRounded ::
+     (KnownNat s, Round r, Integral p, Bounded p)
+  => Decimal r s p
+  -> Decimal r s p
+  -> Either ArithException (Decimal r s p)
+timesDecimalRounded dx dy = roundDecimal <$> timesDecimal dx dy
+{-# INLINABLE timesDecimalRounded #-}
+
 
 
 instance (Integral p, KnownNat s) => Show (Decimal r s p) where
   show d@(Decimal a)
     | s == 0 = show $ toInteger a
-    | r == 0 = printf ("%u." ++ replicate s '0') $ toInteger q
-    | otherwise = printf fmt (toInteger q) (toInteger r)
-    where s = getScale d
-          fmt = "%u.%0" ++ show s ++ "u"
-          (q, r) = quotRem a (10 ^ s)
+    | r == 0 = printf ("%d." ++ replicate s '0') q
+    | signum r < 0 && q == 0 = "-" ++ formatted
+    | otherwise = formatted
+    where
+      formatted = printf fmt q (abs r)
+      s = getScale d
+      fmt = "%d.%0" ++ show s ++ "u"
+      (q, r) = quotRem (toInteger a) (10 ^ s)
 
-
----- Scientific
-
--- | Convert Decimal to Scientific
-toScientific :: (Integral p, KnownNat s) => Decimal r s p -> Scientific
-toScientific dec = scientific (toInteger (unwrapDecimal dec)) (negate (getScale dec))
-
--- | Convert Scientific to Decimal without loss of precision. Will return `Left` `Underflow` if
--- `Scientific` has too many decimal places, more than `Decimal` scaling is capable to handle.
-fromScientific :: forall r s . KnownNat s => Scientific -> Either ArithException (Decimal r s Integer)
-fromScientific num
-  | point10 > s = Left Underflow
-  | otherwise = Right (Decimal (coefficient num * 10 ^ (s - point10)))
-  where
-      s = natVal (Proxy :: Proxy s)
-      point10 = toInteger (negate (base10Exponent num))
-
--- | Convert from Scientific to Decimal while checking for Overflow/Underflow 
-fromScientificBounded ::
-     forall r s p. (Integral p, Bounded p, KnownNat s)
-  => Scientific
-  -> Either ArithException (Decimal r s p)
-fromScientificBounded num = do
-  Decimal integer :: Decimal r s Integer <- fromScientific num
-  Decimal <$> fromIntegerBounded integer
 
 
 -- TODO: Convert with Rounding
@@ -295,23 +313,78 @@ fromScientificBounded num = do
 
 -- Parsing
 
+maxBoundCharsCount :: forall a . (Integral a, Bounded a) => Proxy a -> Int
+maxBoundCharsCount _ = length (show (toInteger (maxBound :: a)))
 
--- parseDecimal :: forall s. KnownNat s => T.Text -> Either String (Decimal s)
--- parseDecimal input
---   | T.length input > 20 = Left "Input is too big for parsing as a Decimal value"
---   | otherwise = do
---     (num, leftOver) <- T.decimal input
---     let s = fromIntegral (natVal (Proxy :: Proxy s)) :: Int
---     case T.uncons leftOver of
---       Nothing -> do
---         return ((num :: Int) $. (0 :: Int))
---       Just ('.', digitsTxt)
---         | T.length digitsTxt > s -> Left $ "Too much text after the decimal: " ++ T.unpack digitsTxt
---       Just ('.', digitsTxt)
---         | not (T.null digitsTxt) -> do
---           (decimalDigits, extraTxt) <-
---             T.decimal (digitsTxt <> T.replicate (s - T.length digitsTxt) "0")
---           unless (T.null extraTxt) $ Left $ "Unrecognized digits: " ++ T.unpack digitsTxt
---             -- TODO: when switching to safe-decimal ($.) will return Either
---           return ((num :: Int) $. (decimalDigits :: Int))
---       _ -> Left $ "Unrecognized left over text: " ++ T.unpack leftOver
+minBoundCharsCount :: forall a . (Integral a, Bounded a) => Proxy a -> Int
+minBoundCharsCount _ = length (show (toInteger (minBound :: a)))
+
+fromIntegersScaleBounded ::
+     forall a s. (Integral a, Bounded a, KnownNat s)
+  => Proxy s
+  -> Integer
+  -> Integer
+  -> Either ArithException a
+fromIntegersScaleBounded ps x y
+  | xs > toInteger (maxBound :: a) = Left Overflow
+  | xs < toInteger (minBound :: a) = Left Underflow
+  | otherwise = Right $ fromInteger xs
+  where s = natVal ps
+        xs = x * (10 ^ s) + y
+{-# INLINABLE fromIntegersScaleBounded #-}
+
+
+
+parseDecimalBounded ::
+     forall r s p. (KnownNat s, Bounded p, Integral p)
+  => Bool
+  -> String
+  -> Either String (Decimal r s p)
+parseDecimalBounded checkForPlusSign rawInput
+  | not (null tooMuch) = Left "Input is too big for parsing as a bounded Decimal value"
+  | otherwise = do
+    (sign, signLeftOver) <- getSign input
+    -- by now we conditionally extracted the sign (+/-)
+    (num, leftOver) <- digits signLeftOver
+    let s = fromIntegral (natVal spx) :: Int
+    case uncons leftOver of
+      Nothing -> do
+        toStringError (fromIntegersScaleBounded spx (sign * num) 0)
+      Just ('.', digitsTxt)
+        | length digitsTxt > s -> Left $ "Too much text after the decimal: " ++ digitsTxt
+      Just ('.', digitsTxt)
+        | not (null digitsTxt) -> do
+          (decimalDigits, extraTxt) <- digits (digitsTxt ++ replicate (s - length digitsTxt) '0')
+          unless (null extraTxt) $ Left $ "Unrecognized digits: " ++ digitsTxt
+          toStringError (fromIntegersScaleBounded spx (sign * num) (sign * decimalDigits))
+      _ -> Left $ "Unrecognized left over text: " ++ leftOver
+  where
+    spx = Proxy :: Proxy s
+    toStringError =
+      \case
+        Left Underflow -> Left $ "Number is too small to be represented as decimal: " ++ input
+        Left Overflow -> Left $ "Number is too big to be represented as decimal: " ++ input
+        Left err -> Left $ "Unexpected error: " ++ show err
+        Right val -> Right (Decimal val)
+    maxChars =
+      2 + max (maxBoundCharsCount (Proxy :: Proxy p)) (minBoundCharsCount (Proxy :: Proxy p))
+    {-- ^ account for possible dot in the decimal and an extra preceding 0 -}
+    (input, tooMuch) = splitAt maxChars rawInput
+    getSign str =
+      if (minBound :: p) >= 0
+        then Right (1, str)
+        else case uncons str of
+               Nothing -> Left "Input String is empty"
+               Just ('-', strLeftOver) -> Right (-1, strLeftOver)
+               Just ('+', strLeftOver)
+                 | checkForPlusSign -> Right (1, strLeftOver)
+               _ -> Right (1, str)
+
+digits :: Num a => String -> Either String (a, String)
+digits str
+  | null h = Left "Input does not start with a digit"
+  | otherwise = Right (F.foldl' go 0 h, t)
+  where
+    (h, t) = span isDigit str
+    go n d = (n * 10 + fromIntegral (digitToInt d))
+
