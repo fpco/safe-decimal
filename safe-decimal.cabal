@@ -22,7 +22,6 @@ library
   other-modules: Numeric.Decimal.Internal
   hs-source-dirs: src
   build-depends: base >=4.7 && <5
-               , aeson
                , deepseq
                , scientific
   ghc-options: -Wall
