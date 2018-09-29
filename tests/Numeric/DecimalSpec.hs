@@ -174,7 +174,7 @@ specBoundedDecimal pr ps pp = do
     it "toFromScientific" $ property $ prop_toFromScientific pr ps pp
     it "toFromScientificBounded" $ property $ prop_toFromScientificBounded pr ps pp
     it "showParseBounded" $ property $ prop_showParseBouded pr ps pp
-
+    -- TODO: x times integral / integral == x
 
 prop_toFromScientific ::
      (Arbitrary p, Integral p, KnownNat s)

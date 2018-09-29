@@ -1,6 +1,7 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
@@ -22,6 +23,8 @@ module Numeric.Decimal.Internal
   , timesDecimal
   , timesDecimalBounded
   , timesDecimalRounded
+  , divideDecimal
+  , fromIntegerDecimalBounded
   , liftDecimal
   , liftDecimal2
   , bindM2Decimal
@@ -36,15 +39,17 @@ module Numeric.Decimal.Internal
   , quotBounded
   ) where
 
-import Data.Ratio
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
 import           Data.Char
 import           Data.Foldable       as F
+import           Data.Int
 import           Data.List
 import           Data.Proxy
+import           Data.Ratio
+import           Data.Word
 import           GHC.Generics        (Generic)
 import           GHC.TypeLits
 import           Text.Printf
@@ -122,6 +127,10 @@ instance Bounded p => Bounded (Decimal r s p) where
   minBound = Decimal minBound
   maxBound = Decimal maxBound
 
+-----------------------------------
+-- Integer instances --------------
+-----------------------------------
+
 instance (Round r, KnownNat s) => Num (Decimal r s Integer) where
   (+) = liftA2 (+)
   {-# INLINABLE (+) #-}
@@ -137,23 +146,44 @@ instance (Round r, KnownNat s) => Num (Decimal r s Integer) where
   {-# INLINABLE fromInteger #-}
 
 instance (Round r, KnownNat s) => Real (Decimal r s Integer) where
-  toRational (Decimal p) = p % natVal (Proxy :: Proxy s)
+  toRational (Decimal p) = p % (10 ^ natVal (Proxy :: Proxy s))
   {-# INLINABLE toRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Decimal r s Integer) where
-  (/) (Decimal x) (Decimal y) = fromRational (x % y)
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Integer)) where
+  (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
-  fromRational rational =
-    roundDecimal
-      (Decimal (numerator scaledRat `quot` denominator scaledRat) :: Decimal r (s + 1) Integer)
+  fromRational rational
+    | denominator rational == 0 = Left DivideByZero
+    | otherwise =
+      Right $
+      roundDecimal
+        (Decimal (numerator scaledRat `quot` denominator scaledRat) :: Decimal r (s + 1) Integer)
     where
       scaledRat = rational * (d % 1)
       d = 10 ^ (natVal (Proxy :: Proxy s) + 1)
   {-# INLINABLE fromRational #-}
 
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Integer)) where
+  (+) = liftA2 (+)
+  {-# INLINABLE (+) #-}
+  (-) = liftA2 (-)
+  {-# INLINABLE (-) #-}
+  (*) x y = roundDecimal <$> liftA2 timesDecimal x y
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = fmap (fmap abs)
+  {-# INLINABLE abs #-}
+  fromInteger = pure . Decimal
+  {-# INLINABLE fromInteger #-}
 
-instance (Round r, Integral p, Bounded p, KnownNat s) =>
-         Num (Either ArithException (Decimal r s p)) where
+
+-----------------------------------
+-- Bounded Integral instances -----
+-----------------------------------
+
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -167,18 +197,207 @@ instance (Round r, Integral p, Bounded p, KnownNat s) =>
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, Integral p, Bounded p, KnownNat s) =>
-         Fractional (Either ArithException (Decimal r s p)) where
-  (/) ex ey = do
-    x <- ex
-    y <- ey
-    -- TODO: Investigate a more efficient way to do safe division, without going through `Integer`
-    fromIntegerDecimalBounded (fmap toInteger x / fmap toInteger y)
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int8)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = fmap (fmap abs)
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int16)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = fmap (fmap abs)
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int32)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = fmap (fmap abs)
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int64)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = fmap (fmap abs)
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = id
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word8)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = id
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word16)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = id
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word32)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = id
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word64)) where
+  (+) = bindM2 plusDecimal
+  {-# INLINABLE (+) #-}
+  (-) = bindM2 minusDecimal
+  {-# INLINABLE (-) #-}
+  (*) = bindM2 timesDecimalRounded
+  {-# INLINABLE (*) #-}
+  signum = fmap (fmap signum)
+  {-# INLINABLE signum #-}
+  abs = id
+  {-# INLINABLE abs #-}
+  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  {-# INLINABLE fromInteger #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int)) where
+  (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
-  fromRational = fromIntegerDecimalBounded . fromRational
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int8)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int16)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int32)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
 
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int64)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word8)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word16)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word32)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word64)) where
+  (/) = bindM2 divideDecimal
+  {-# INLINABLE (/) #-}
+  fromRational r = fromRational r >>= fromIntegerDecimalBounded
+  {-# INLINABLE fromRational #-}
+
+divideDecimal ::
+     (Fractional (Either ArithException (Decimal r s p)), Integral p, Integral p)
+  => Decimal r s p
+  -> Decimal r s p
+  -> Either ArithException (Decimal r s p)
+divideDecimal (Decimal x) (Decimal y)
+  | y == 0 = Left DivideByZero
+  | otherwise = fromRational (toInteger x % toInteger y)
+{-# INLINABLE divideDecimal #-}
+
+
+-----------------------------------
+-- Helper functions ---------------
+-----------------------------------
 
 -- | Add two bounded numbers while checking for `Overflow`/`Underflow`
 plusBounded :: (Eq a, Ord a, Num a, Bounded a) => a -> a -> Either ArithException a
@@ -320,6 +539,9 @@ timesDecimalRounded dx dy =
 {-# INLINABLE timesDecimalRounded #-}
 
 
+-----------------------------------
+-- Showing ------------------------
+-----------------------------------
 
 instance (Integral p, KnownNat s) => Show (Decimal r s p) where
   show d@(Decimal a)
@@ -333,34 +555,9 @@ instance (Integral p, KnownNat s) => Show (Decimal r s p) where
       fmt = "%d.%0" ++ show s ++ "u"
       (q, r) = quotRem (toInteger a) (10 ^ s)
 
-
-
--- TODO: Convert with Rounding
--- fromScientificRounded ::
---      forall r s. (Round r, KnownNat s)
---   => Scientific
---   -> ArithException (Decimal r s Integer)
-
-
-
--- instance KnownNat s => ToJSON (Decimal s) where
---   toJSON (Decimal c) =
---     Number (scientific (toInteger c) (negate (fromIntegral (natVal (Proxy :: Proxy s)))))
-
--- instance KnownNat s => FromJSON (Decimal s) where
---   parseJSON =
---     withScientific "Extected number" $ \num ->
---       let exp10 = negate (base10Exponent num)
---           s = fromIntegral (natVal (Proxy :: Proxy s))
---        in if exp10 > s
---             then fail $ "Too many digits after the decimal: " ++ show num
---             else do
---               let n = coefficient (num * 10 ^ (s - exp10))
---               guard (n >= 0 && n <= fromIntegral (maxBound :: Int64))
---               return $ Decimal (fromInteger n)
-
-
--- Parsing
+-----------------------------------
+-- Parsing ------------------------
+-----------------------------------
 
 maxBoundCharsCount :: forall a . (Integral a, Bounded a) => Proxy a -> Int
 maxBoundCharsCount _ = length (show (toInteger (maxBound :: a)))
