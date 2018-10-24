@@ -174,7 +174,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Intege
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
-  fromInteger = pure . Decimal
+  fromInteger = pure . fromNum
   {-# INLINABLE fromInteger #-}
 
 
