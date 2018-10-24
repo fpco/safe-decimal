@@ -72,7 +72,7 @@ productDecimal ::
      (KnownNat s, Round r, Integral p, Bounded p)
   => [Decimal r s p]
   -> Either ArithException (Decimal r s p)
-productDecimal = foldM timesDecimalRounded (Decimal 1)
+productDecimal = foldM timesDecimalRounded (fromNum 1)
 {-# INLINABLE productDecimal #-}
 
 
