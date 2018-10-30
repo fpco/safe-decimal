@@ -149,6 +149,13 @@ instance (Round r, KnownNat s) => Real (Decimal r s Integer) where
   toRational (Decimal p) = p % (10 ^ natVal (Proxy :: Proxy s))
   {-# INLINABLE toRational #-}
 
+-- | The order of fractional and negation for literals prevents rational numbers to be negative in
+-- `fromRational` function, which can cause some issues in rounding:
+--
+-- >>> fromRational (-23.5) :: Either ArithException (Decimal RoundHalfUp 0 Integer)
+-- Right -23
+-- >>> -23.5 :: Either ArithException (Decimal RoundHalfUp 0 Integer)
+-- Right -24
 instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Integer)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
@@ -156,8 +163,7 @@ instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s
     | denominator rational == 0 = Left DivideByZero
     | otherwise =
       Right $
-      roundDecimal
-        (Decimal (numerator scaledRat `quot` denominator scaledRat) :: Decimal r (s + 1) Integer)
+      roundDecimal (Decimal (truncate scaledRat) :: Decimal r (s + 1) Integer)
     where
       scaledRat = rational * (d % 1)
       d = 10 ^ (natVal (Proxy :: Proxy s) + 1)

@@ -4,9 +4,12 @@
 {-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE NegativeLiterals           #-}
 module Numeric.Decimal
   ( Decimal64
   , RoundHalfUp
+  , RoundFloor
+  , Truncate
   , module Numeric.Decimal.Internal
   -- * Operations
   , decimalList
@@ -41,6 +44,27 @@ instance Round RoundHalfUp where
     where
       k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
       (q, r) = quotRem x (10 ^ k)
+  {-# INLINABLE roundDecimal #-}
+
+data RoundFloor
+
+instance Round RoundFloor where
+  roundDecimal :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+  roundDecimal (Decimal x)
+    | x >= 0 || r == 0 = Decimal q
+    | otherwise = Decimal (q - 1)
+    where
+      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+      (q, r) = quotRem x (10 ^ k)
+  {-# INLINABLE roundDecimal #-}
+
+data Truncate
+
+instance Round Truncate where
+  roundDecimal :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+  roundDecimal (Decimal x) = Decimal (quot x (10 ^ k))
+    where
+      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
   {-# INLINABLE roundDecimal #-}
 
 -- | /O(1)/ - Conversion of a list.

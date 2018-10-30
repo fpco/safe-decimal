@@ -2,6 +2,7 @@
 {-# LANGUAGE PackageImports #-}
 module Main where
 
+import Data.Fixed
 import           Control.Exception
 import           Control.Monad
 import           Criterion.Main
@@ -73,7 +74,10 @@ main = do
             (return
                ((coerce :: [Integer] -> [SafeDecimal.Decimal SafeDecimal.RoundHalfUp 2 Integer]) ls))
             (bench "[SafeDecimal]/Integer" . nf (foldl' (+) 0))
-        , env (return (map toSafeDecimal ls)) (bench "[SafeDecimal]/Int64" . nf sumSafeDecimal)
+        , env (return (map toSafeDecimal ls)) (bench "Strict/[SafeDecimal]/Int64" . nf sumSafeDecimal)
+        , env
+            (return (map (fromInteger :: Integer -> Centi) ls))
+            (bench "Strict/[Fixed]/Centi" . nf (foldl' (+) 0))
         , env
             (return (map (`scientific` 2) ls))
             (bench "[Scientific]" . nf (foldl' (+) 0))
