@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
@@ -24,7 +23,10 @@ module Numeric.Decimal.Internal
   , timesDecimalBounded
   , timesDecimalRounded
   , divideDecimal
+  , quotRemBounded
+  , quotRemDecimalBounded
   , fromIntegerDecimalBounded
+  , fromRationalDecimalRounded
   , liftDecimal
   , liftDecimal2
   , bindM2Decimal
@@ -43,6 +45,7 @@ import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
+import           Control.Monad.Catch
 import           Data.Char
 import           Data.Foldable       as F
 import           Data.Int
@@ -53,6 +56,7 @@ import           Data.Word
 import           GHC.Generics        (Generic)
 import           GHC.TypeLits
 import           Text.Printf
+
 
 -- | Decimal number with custom precision (@p@) and type level scaling (@s@) parameter (i.e. number
 -- of digits after the decimal point). As well as the rounding (@r@) strategy to use
@@ -152,24 +156,17 @@ instance (Round r, KnownNat s) => Real (Decimal r s Integer) where
 -- | The order of fractional and negation for literals prevents rational numbers to be negative in
 -- `fromRational` function, which can cause some issues in rounding:
 --
--- >>> fromRational (-23.5) :: Either ArithException (Decimal RoundHalfUp 0 Integer)
+-- >>> fromRational (-23.5) :: Either SomeException (Decimal RoundHalfUp 0 Integer)
 -- Right -23
--- >>> -23.5 :: Either ArithException (Decimal RoundHalfUp 0 Integer)
+-- >>> -23.5 :: Either SomeException (Decimal RoundHalfUp 0 Integer)
 -- Right -24
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Integer)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Integer)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
-  fromRational rational
-    | denominator rational == 0 = Left DivideByZero
-    | otherwise =
-      Right $
-      roundDecimal (Decimal (truncate scaledRat) :: Decimal r (s + 1) Integer)
-    where
-      scaledRat = rational * (d % 1)
-      d = 10 ^ (natVal (Proxy :: Proxy s) + 1)
+  fromRational = fromRationalDecimalRounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Integer)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Integer)) where
   (+) = liftA2 (+)
   {-# INLINABLE (+) #-}
   (-) = liftA2 (-)
@@ -189,7 +186,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Intege
 -----------------------------------
 
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -203,7 +200,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int)) 
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int8)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int8)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -217,7 +214,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int8))
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int16)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int16)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -231,7 +228,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int16)
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int32)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int32)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -245,7 +242,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int32)
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int64)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int64)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -259,7 +256,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Int64)
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -273,7 +270,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word))
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word8)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word8)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -287,7 +284,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word8)
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word16)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word16)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -301,7 +298,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word16
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word32)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word32)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -315,7 +312,7 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word32
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word64)) where
+instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word64)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
@@ -329,74 +326,74 @@ instance (Round r, KnownNat s) => Num (Either ArithException (Decimal r s Word64
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Int)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int8)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Int8)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int16)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Int16)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int32)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Int32)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Int64)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Int64)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Word)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word8)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Word8)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word16)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Word16)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word32)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Word32)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (Round r, KnownNat s) => Fractional (Either ArithException (Decimal r s Word64)) where
+instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Word64)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRational r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
 divideDecimal ::
-     (Fractional (Either ArithException (Decimal r s p)), Integral p, Integral p)
+     (MonadThrow m, Fractional (m (Decimal r s p)), Integral p, Integral p)
   => Decimal r s p
   -> Decimal r s p
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 divideDecimal (Decimal x) (Decimal y)
-  | y == 0 = Left DivideByZero
+  | y == 0 = throwM DivideByZero
   | otherwise = fromRational (toInteger x % toInteger y)
 {-# INLINABLE divideDecimal #-}
 
@@ -406,11 +403,11 @@ divideDecimal (Decimal x) (Decimal y)
 -----------------------------------
 
 -- | Add two bounded numbers while checking for `Overflow`/`Underflow`
-plusBounded :: (Eq a, Ord a, Num a, Bounded a) => a -> a -> Either ArithException a
+plusBounded :: (MonadThrow m, Eq a, Ord a, Num a, Bounded a) => a -> a -> m a
 plusBounded x y
-  | (sameSig && sigX ==  1 && x > maxBound - y) = Left Overflow
-  | (sameSig && sigX == -1 && x < minBound - y) = Left Underflow
-  | otherwise = Right (x + y)
+  | (sameSig && sigX ==  1 && x > maxBound - y) = throwM Overflow
+  | (sameSig && sigX == -1 && x < minBound - y) = throwM Underflow
+  | otherwise = pure (x + y)
   where
     sigX = signum x
     sigY = signum y
@@ -418,110 +415,133 @@ plusBounded x y
 {-# INLINABLE plusBounded #-}
 
 -- | Subtract two bounded numbers while checking for `Overflow`/`Underflow`
-minusBounded :: (Eq a, Ord a, Num a, Bounded a) => a -> a -> Either ArithException a
+minusBounded :: (MonadThrow m, Eq a, Ord a, Num a, Bounded a) => a -> a -> m a
 minusBounded x y
-  | (sigY == -1 && x > maxBound + y) = Left Overflow
-  | (sigY ==  1 && x < minBound + y) = Left Underflow
-  | otherwise = Right (x - y)
+  | (sigY == -1 && x > maxBound + y) = throwM Overflow
+  | (sigY ==  1 && x < minBound + y) = throwM Underflow
+  | otherwise = pure (x - y)
   where sigY = signum y
 {-# INLINABLE minusBounded #-}
 
 -- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
-divBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
+divBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
 divBounded x y
-  | y == 0 = Left DivideByZero
-  | sigY == -1 && y == -1 && x == minBound = Left Overflow
+  | y == 0 = throwM DivideByZero
+  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
     ------------------- ^ Here we deal with special case overflow when (minBound * (-1))
-  | otherwise = Right (x `div` y)
+  | otherwise = pure (x `div` y)
   where
     sigY = signum y
 {-# INLINABLE divBounded #-}
 
 
 -- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
-quotBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
+quotBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
 quotBounded x y
-  | y == 0 = Left DivideByZero
-  | sigY == -1 && y == -1 && x == minBound = Left Overflow
+  | y == 0 = throwM DivideByZero
+  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
     ------------------- ^ Here we deal with special case overflow when (minBound * (-1))
-  | otherwise = Right (x `quot` y)
+  | otherwise = pure (x `quot` y)
   where
-    sigY = signum y
+    sigY = signum y -- Guard against wraparound in case of unsigned Word
 {-# INLINABLE quotBounded #-}
 
+-- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
+quotRemBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m (a, a)
+quotRemBounded x y
+  | y == 0 = throwM DivideByZero
+  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
+  | otherwise = pure (x `quotRem` y)
+  where
+    sigY = signum y
+{-# INLINABLE quotRemBounded #-}
 
--- | Add two decimal numbers while checking for `Overflow`
-timesBounded :: (Integral a, Bounded a) => a -> a -> Either ArithException a
+quotRemDecimalBounded ::
+     forall m r s p. (MonadThrow m, Integral p, Bounded p)
+  => Decimal r s p
+  -> Integer
+  -> m (Decimal r s p, Decimal r s p)
+quotRemDecimalBounded (Decimal raw) i
+  | i < toInteger (minBound :: p) = throwM Underflow
+  | i > toInteger (maxBound :: p) = throwM Overflow
+  | otherwise = do
+      (q, r) <- quotRemBounded raw $ fromInteger i
+      pure (Decimal q, Decimal r)
+{-# INLINABLE quotRemDecimalBounded #-}
+
+
+-- | Multiply two decimal numbers while checking for `Overflow`
+timesBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
 timesBounded x y
-  | (sigY == -1 && y == -1 && x == minBound) = Left Overflow
-  | (signum x == -1 && x == -1 && y == minBound) = Left Overflow
+  | (sigY == -1 && y == -1 && x == minBound) = throwM Overflow
+  | (signum x == -1 && x == -1 && y == minBound) = throwM Overflow
   | (sigY ==  1 && (minBoundQuotY > x || x > maxBoundQuotY)) = eitherOverUnder
   | (sigY == -1 && y /= -1 && (minBoundQuotY < x || x < maxBoundQuotY)) = eitherOverUnder
-  | otherwise = Right (x * y)
+  | otherwise = pure (x * y)
   where
     sigY = signum y
     maxBoundQuotY = maxBound `quot` y
     minBoundQuotY = minBound `quot` y
-    eitherOverUnder = Left $ if sigY == signum x then Overflow else Underflow
+    eitherOverUnder = throwM $ if sigY == signum x then Overflow else Underflow
 {-# INLINABLE timesBounded #-}
 
 
 fromIntegerBounded ::
-     forall a. (Integral a, Bounded a)
+     forall m a. (MonadThrow m, Integral a, Bounded a)
   => Integer
-  -> Either ArithException a
+  -> m a
 fromIntegerBounded x
-  | x > toInteger (maxBound :: a) = Left Overflow
-  | x < toInteger (minBound :: a) = Left Underflow
-  | otherwise = Right $ fromInteger x
+  | x > toInteger (maxBound :: a) = throwM Overflow
+  | x < toInteger (minBound :: a) = throwM Underflow
+  | otherwise = pure $ fromInteger x
 {-# INLINABLE fromIntegerBounded #-}
 
 fromIntegerScaleBounded ::
-     forall a s. (Integral a, Bounded a, KnownNat s)
+     forall m a s. (MonadThrow m, Integral a, Bounded a, KnownNat s)
   => Proxy s
   -> Integer
-  -> Either ArithException a
+  -> m a
 fromIntegerScaleBounded ps x
-  | xs > toInteger (maxBound :: a) = Left Overflow
-  | xs < toInteger (minBound :: a) = Left Underflow
-  | otherwise = Right $ fromInteger xs
+  | xs > toInteger (maxBound :: a) = throwM Overflow
+  | xs < toInteger (minBound :: a) = throwM Underflow
+  | otherwise = pure $ fromInteger xs
   where s = natVal ps
         xs = x * (10 ^ s)
 {-# INLINABLE fromIntegerScaleBounded #-}
 
 
 fromIntegerDecimalBounded ::
-     forall r s p. (Integral p, Bounded p)
+     forall m r s p. (MonadThrow m, Integral p, Bounded p)
   => Decimal r s Integer
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 fromIntegerDecimalBounded (Decimal x) = Decimal <$> fromIntegerBounded x
 {-# INLINABLE fromIntegerDecimalBounded #-}
 
 
 -- | Add two decimal numbers.
 plusDecimal ::
-     (Eq p, Ord p, Num p, Bounded p)
+     (MonadThrow m, Eq p, Ord p, Num p, Bounded p)
   => Decimal r s p
   -> Decimal r s p
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 plusDecimal (Decimal x) (Decimal y) = Decimal <$> plusBounded x y
 {-# INLINABLE plusDecimal #-}
 
 -- | Subtract two decimal numbers.
 minusDecimal ::
-     (Eq p, Ord p, Num p, Bounded p)
+     (MonadThrow m, Eq p, Ord p, Num p, Bounded p)
   => Decimal r s p
   -> Decimal r s p
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 minusDecimal (Decimal x) (Decimal y) = Decimal <$> minusBounded x y
 {-# INLINABLE minusDecimal #-}
 
 -- | Multiply two bounded decimal numbers, adjusting their scale at the type level as well.
 timesDecimalBounded ::
-     (Integral p, Bounded p)
+     (MonadThrow m, Integral p, Bounded p)
   => Decimal r s1 p
   -> Decimal r s2 p
-  -> Either ArithException (Decimal r (s1 + s2) p)
+  -> m (Decimal r (s1 + s2) p)
 timesDecimalBounded (Decimal x) (Decimal y) = Decimal <$> timesBounded x y
 {-# INLINABLE timesDecimalBounded #-}
 
@@ -536,13 +556,25 @@ timesDecimal (Decimal x) (Decimal y) = Decimal (x * y)
 
 -- | Multiply two decimal numbers, while rounding the result according to the rounding strategy.
 timesDecimalRounded ::
-     (KnownNat s, Round r, Integral p, Bounded p)
+     (MonadThrow m, KnownNat s, Round r, Integral p, Bounded p)
   => Decimal r s p
   -> Decimal r s p
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 timesDecimalRounded dx dy =
   fromIntegerDecimalBounded $ roundDecimal $ timesDecimal (fmap toInteger dx) (fmap toInteger dy)
 {-# INLINABLE timesDecimalRounded #-}
+
+fromRationalDecimalRounded ::
+     forall m r s p. (MonadThrow m, KnownNat s, Round r, Integral p)
+  => Rational
+  -> m (Decimal r s p)
+fromRationalDecimalRounded rational
+  | denominator rational == 0 = throwM DivideByZero
+  | otherwise = pure $ roundDecimal (Decimal (truncate scaledRat) :: Decimal r (s + 1) p)
+  where
+    scaledRat = rational * (d % 1)
+    d = 10 ^ (natVal (Proxy :: Proxy s) + 1)
+{-# INLINABLE fromRationalDecimalRounded #-}
 
 
 -----------------------------------
@@ -572,19 +604,28 @@ minBoundCharsCount :: forall a . (Integral a, Bounded a) => Proxy a -> Int
 minBoundCharsCount _ = length (show (toInteger (minBound :: a)))
 
 fromIntegersScaleBounded ::
-     forall a s. (Integral a, Bounded a, KnownNat s)
+     forall m a s. (MonadThrow m, Integral a, Bounded a, KnownNat s)
   => Proxy s
   -> Integer
   -> Integer
-  -> Either ArithException a
+  -> m a
 fromIntegersScaleBounded ps x y
-  | xs > toInteger (maxBound :: a) = Left Overflow
-  | xs < toInteger (minBound :: a) = Left Underflow
-  | otherwise = Right $ fromInteger xs
+  | xs > toInteger (maxBound :: a) = throwM Overflow
+  | xs < toInteger (minBound :: a) = throwM Underflow
+  | otherwise = pure $ fromInteger xs
   where s = natVal ps
         xs = x * (10 ^ s) + y
 {-# INLINABLE fromIntegersScaleBounded #-}
 
+-- | Contruct a Decimal from two Integers
+fromIntegersDecimal ::
+     forall m r s p. (MonadThrow m, KnownNat s, Bounded p, Integral p)
+  => Integer
+  -> Integer
+  -> m (Decimal r s p)
+fromIntegersDecimal i1 i2 = Decimal <$> fromIntegersScaleBounded ps i1 i2
+  where ps = Proxy :: Proxy s
+{-# INLINABLE fromIntegersDecimal #-}
 
 
 parseDecimalBounded ::
@@ -614,9 +655,13 @@ parseDecimalBounded checkForPlusSign rawInput
     spx = Proxy :: Proxy s
     toStringError =
       \case
-        Left Underflow -> Left $ "Number is too small to be represented as decimal: " ++ input
-        Left Overflow -> Left $ "Number is too big to be represented as decimal: " ++ input
-        Left err -> Left $ "Unexpected error: " ++ show err
+        Left exc
+          | Just Underflow <- fromException exc ->
+            Left $ "Number is too small to be represented as decimal: " ++ input
+        Left exc
+          | Just Overflow <- fromException exc ->
+            Left $ "Number is too big to be represented as decimal: " ++ input
+        Left err -> Left $ "Unexpected error: " ++ displayException err
         Right val -> Right (Decimal val)
     maxChars =
       2 + max (maxBoundCharsCount (Proxy :: Proxy p)) (minBoundCharsCount (Proxy :: Proxy p))

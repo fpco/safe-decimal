@@ -23,6 +23,7 @@ module Numeric.Decimal
 
 import           Control.Exception
 import           Control.Monad
+import           Control.Monad.Catch
 import           Data.Coerce
 import           Data.Int
 import           Data.Proxy
@@ -76,7 +77,7 @@ instance Round Truncate where
 --
 -- If scaling is what you need use `fromIntegral` instead:
 --
--- >>> mapM fromIntegral ([1,20,300] :: [Int]) :: Either ArithException [Decimal RoundHalfUp 2 Int]
+-- >>> mapM fromIntegral ([1,20,300] :: [Int]) :: Either SomeException [Decimal RoundHalfUp 2 Int]
 -- Right [1.00,20.00,300.00]
 --
 decimalList :: Integral p => [p] -> [Decimal r s p]
@@ -85,17 +86,17 @@ decimalList = coerce
 
 -- | Sum a list of decimal numbers
 sumDecimal ::
-     (Foldable t, Eq p, Ord p, Num p, Bounded p)
+     (MonadThrow m, Foldable t, Eq p, Ord p, Num p, Bounded p)
   => t (Decimal r s p)
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 sumDecimal = foldM plusDecimal (Decimal 0)
 {-# INLINABLE sumDecimal #-}
 
 -- | Multiply all decimal numbers in the list while doing rounding.
 productDecimal ::
-     (KnownNat s, Round r, Integral p, Bounded p)
+     (MonadThrow m, KnownNat s, Round r, Integral p, Bounded p)
   => [Decimal r s p]
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 productDecimal = foldM timesDecimalRounded (fromNum 1)
 {-# INLINABLE productDecimal #-}
 
@@ -109,19 +110,19 @@ toScientific dec = scientific (toInteger (unwrapDecimal dec)) (negate (getScale 
 
 -- | Convert Scientific to Decimal without loss of precision. Will return `Left` `Underflow` if
 -- `Scientific` has too many decimal places, more than `Decimal` scaling is capable to handle.
-fromScientific :: forall r s . KnownNat s => Scientific -> Either ArithException (Decimal r s Integer)
+fromScientific :: forall m r s . (MonadThrow m, KnownNat s) => Scientific -> m (Decimal r s Integer)
 fromScientific num
-  | point10 > s = Left Underflow
-  | otherwise = Right (Decimal (coefficient num * 10 ^ (s - point10)))
+  | point10 > s = throwM Underflow
+  | otherwise = pure (Decimal (coefficient num * 10 ^ (s - point10)))
   where
       s = natVal (Proxy :: Proxy s)
       point10 = toInteger (negate (base10Exponent num))
 
 -- | Convert from Scientific to Decimal while checking for Overflow/Underflow
 fromScientificBounded ::
-     forall r s p. (Integral p, Bounded p, KnownNat s)
+     forall m r s p. (MonadThrow m, Integral p, Bounded p, KnownNat s)
   => Scientific
-  -> Either ArithException (Decimal r s p)
+  -> m (Decimal r s p)
 fromScientificBounded num = do
   Decimal integer :: Decimal r s Integer <- fromScientific num
   Decimal <$> fromIntegerBounded integer
