@@ -1,6 +1,4 @@
 flags: {}
 packages:
 - .
-extra-deps:
-- decimal-arithmetic-0.5.1.0
-resolver: lts-12.4
+resolver: lts-12.26

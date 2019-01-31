@@ -49,7 +49,7 @@ prop_plusBounded excs (Extremum x) (Extremum y) =
   where
     res = x + y
     withinBounds = toInteger res == toInteger x + toInteger y
-    resBounded = plusBounded x y
+    resBounded = toArithException $ plusBounded x y
 
 
 prop_minusBounded ::
@@ -66,7 +66,7 @@ prop_minusBounded excs (Extremum x) (Extremum y) =
   where
     res = x - y
     withinBounds = toInteger res == toInteger x - toInteger y
-    resBounded = minusBounded x y
+    resBounded = toArithException $ minusBounded x y
 
 prop_timesBounded ::
      (Arbitrary a, Show a, Integral a, Bounded a)
@@ -82,7 +82,7 @@ prop_timesBounded excs (Extremum x) (Extremum y) =
   where
     res = x * y
     withinBounds = toInteger res == toInteger x * toInteger y
-    resBounded = timesBounded x y
+    resBounded = toArithException $ timesBounded x y
 
 prop_fromIntegerBounded ::
   forall a . (Arbitrary a, Show a, Integral a, Bounded a)
@@ -99,7 +99,17 @@ prop_fromIntegerBounded excs n (Extremum x) =
     multiplier = (n `mod` 3) + 1
     x' = toInteger x * toInteger multiplier -- Try to go overboard 66% of the time
     withinBounds = x' == toInteger (x * fromIntegral multiplier)
-    resBounded = fromIntegerBounded x' :: Either ArithException a
+    resBounded :: Either ArithException a
+    resBounded = toArithException $ fromIntegerBounded x'
+
+-- | Throw all exceptions except the ArithException
+toArithException :: Either SomeException a -> Either ArithException a
+toArithException eRes =
+  case eRes of
+    Left exc
+      | Just arithExc <- fromException exc -> Left arithExc
+    Left exc -> throw exc
+    Right res -> Right res
 
 prop_divBounded ::
      (Arbitrary a, Show a, Integral a, Bounded a, NFData a)
@@ -112,7 +122,7 @@ prop_divBounded (Extremum x) (Extremum y) =
     Left exc  -> assertException (==exc) (x `div` y)
     Right res -> res === x `div` y
   where
-    resBounded = divBounded x y
+    resBounded = toArithException $ divBounded x y
 
 prop_quotBounded ::
      (Arbitrary a, Show a, Integral a, Bounded a, NFData a)
@@ -125,7 +135,7 @@ prop_quotBounded (Extremum x) (Extremum y) =
     Left exc  -> assertException (==exc) (x `quot` y)
     Right res -> res === x `quot` y
   where
-    resBounded = quotBounded x y
+    resBounded = toArithException $ quotBounded x y
 
 
 specBouned ::
@@ -184,8 +194,8 @@ prop_toFromScientific ::
   -> Decimal r s p
   -> Property
 prop_toFromScientific _ _ _ d =
-  (Right d === (fmap fromInteger <$> fromScientific (toScientific d))) .&&.
-  (Right d === (fmap fromInteger <$> fromScientific (normalize (toScientific d))))
+  (Right d === toArithException (fmap fromInteger <$> fromScientific (toScientific d))) .&&.
+  (Right d === toArithException (fmap fromInteger <$> fromScientific (normalize (toScientific d))))
 
 prop_toFromScientificBounded ::
      (Arbitrary p, Integral p, Bounded p, KnownNat s)
@@ -195,8 +205,8 @@ prop_toFromScientificBounded ::
   -> Decimal r s p
   -> Property
 prop_toFromScientificBounded _ _ _ d =
-  (Right d === (fromScientificBounded (toScientific d))) .&&.
-  (Right d === (fromScientificBounded (normalize (toScientific d))))
+  (Right d === toArithException (fromScientificBounded (toScientific d))) .&&.
+  (Right d === toArithException (fromScientificBounded (normalize (toScientific d))))
 
 prop_showParseBouded ::
      (Arbitrary p, Show p, Integral p, Bounded p, KnownNat s)

@@ -86,16 +86,16 @@ decimalList = coerce
 
 -- | Sum a list of decimal numbers
 sumDecimal ::
-     (MonadThrow m, Foldable t, Eq p, Ord p, Num p, Bounded p)
-  => t (Decimal r s p)
+     (MonadThrow m, Foldable f, Eq p, Ord p, Num p, Bounded p)
+  => f (Decimal r s p)
   -> m (Decimal r s p)
 sumDecimal = foldM plusDecimal (Decimal 0)
 {-# INLINABLE sumDecimal #-}
 
 -- | Multiply all decimal numbers in the list while doing rounding.
 productDecimal ::
-     (MonadThrow m, KnownNat s, Round r, Integral p, Bounded p)
-  => [Decimal r s p]
+     (MonadThrow m, Foldable f, KnownNat s, Round r, Integral p, Bounded p)
+  => f (Decimal r s p)
   -> m (Decimal r s p)
 productDecimal = foldM timesDecimalRounded (fromNum 1)
 {-# INLINABLE productDecimal #-}

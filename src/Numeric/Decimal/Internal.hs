@@ -617,16 +617,6 @@ fromIntegersScaleBounded ps x y
         xs = x * (10 ^ s) + y
 {-# INLINABLE fromIntegersScaleBounded #-}
 
--- | Contruct a Decimal from two Integers
-fromIntegersDecimal ::
-     forall m r s p. (MonadThrow m, KnownNat s, Bounded p, Integral p)
-  => Integer
-  -> Integer
-  -> m (Decimal r s p)
-fromIntegersDecimal i1 i2 = Decimal <$> fromIntegersScaleBounded ps i1 i2
-  where ps = Proxy :: Proxy s
-{-# INLINABLE fromIntegersDecimal #-}
-
 
 parseDecimalBounded ::
      forall r s p. (KnownNat s, Bounded p, Integral p)
