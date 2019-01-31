@@ -5,7 +5,7 @@ homepage:       https://github.com/fpco/safe-decimal#readme
 bug-reports:    https://github.com/fpco/safe-decimal/issues
 author:         Alexey Kuleshevich
 maintainer:     alexey@fpcomplete.com
-copyright:      2018 FP Complete
+copyright:      2018-2019 FP Complete
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
