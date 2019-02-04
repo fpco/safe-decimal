@@ -24,9 +24,9 @@ newtype Extremum a = Extremum a deriving Show
 
 instance (Arbitrary a, Bounded a, Integral a) => Arbitrary (Extremum a) where
   arbitrary = do
-    x <- arbitrary
+    NonNegative x <- arbitrary
     frequency $
-      [(f, pure (Extremum v)) | (f, v) <- [(40, minBound - x), (40, maxBound - x), (20, x)]]
+      [(f, pure (Extremum v)) | (f, v) <- [(40, minBound + x), (40, maxBound - x), (20, x)]]
 
 instance (Arbitrary p) => Arbitrary (Decimal r s p) where
   arbitrary = fmap pure arbitrary

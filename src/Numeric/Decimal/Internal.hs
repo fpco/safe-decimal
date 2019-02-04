@@ -20,6 +20,7 @@ module Numeric.Decimal.Internal
   , plusDecimal
   , minusDecimal
   , timesDecimal
+  , signumDecimal
   , timesDecimalBounded
   , timesDecimalRounded
   , divideDecimal
@@ -142,7 +143,7 @@ instance (Round r, KnownNat s) => Num (Decimal r s Integer) where
   {-# INLINABLE (-) #-}
   (*) = liftDecimal2 (*)
   {-# INLINABLE (*) #-}
-  signum = fmap signum
+  signum = signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap abs
   {-# INLINABLE abs #-}
@@ -173,7 +174,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Integer)) wh
   {-# INLINABLE (-) #-}
   (*) x y = roundDecimal <$> liftA2 timesDecimal x y
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -193,7 +194,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int)) where
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -207,7 +208,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int8)) where
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -221,7 +222,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int16)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -235,7 +236,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int32)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -249,7 +250,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int64)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -263,7 +264,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word)) where
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -277,7 +278,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word8)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -291,7 +292,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word16)) whe
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -305,7 +306,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word32)) whe
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -319,7 +320,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word64)) whe
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap (fmap signum)
+  signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -575,6 +576,14 @@ fromRationalDecimalRounded rational
     scaledRat = rational * (d % 1)
     d = 10 ^ (natVal (Proxy :: Proxy s) + 1)
 {-# INLINABLE fromRationalDecimalRounded #-}
+
+
+-- | Compute signum of a decimal, always one of 1, 0 or -1
+signumDecimal :: (Num p, KnownNat s) => Decimal r s p -> Decimal r s p
+signumDecimal (Decimal d) = fromNum (signum d) -- It is safe to scale since signum does not widen
+                                               -- the range, thus will always fall into a valid
+                                               -- value
+{-# INLINABLE signumDecimal #-}
 
 
 -----------------------------------
