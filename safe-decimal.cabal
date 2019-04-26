@@ -1,6 +1,8 @@
 name:           safe-decimal
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/fpco/safe-decimal#readme>
+synopsis:       Safe and very efficient arithmetic operations on fixed decimal point numbers
+category:       Math, Numeric, Numerical
 homepage:       https://github.com/fpco/safe-decimal#readme
 bug-reports:    https://github.com/fpco/safe-decimal/issues
 author:         Alexey Kuleshevich
@@ -21,7 +23,7 @@ library
   exposed-modules: Numeric.Decimal
   other-modules: Numeric.Decimal.Internal
   hs-source-dirs: src
-  build-depends: base >=4.7 && <5
+  build-depends: base >=4.8 && <5
                , deepseq
                , exceptions
                , scientific
