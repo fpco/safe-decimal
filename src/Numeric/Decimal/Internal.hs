@@ -406,8 +406,8 @@ divideDecimal (Decimal x) (Decimal y)
 -- | Add two bounded numbers while checking for `Overflow`/`Underflow`
 plusBounded :: (MonadThrow m, Eq a, Ord a, Num a, Bounded a) => a -> a -> m a
 plusBounded x y
-  | (sameSig && sigX ==  1 && x > maxBound - y) = throwM Overflow
-  | (sameSig && sigX == -1 && x < minBound - y) = throwM Underflow
+  | sameSig && sigX ==  1 && x > maxBound - y = throwM Overflow
+  | sameSig && sigX == -1 && x < minBound - y = throwM Underflow
   | otherwise = pure (x + y)
   where
     sigX = signum x
@@ -418,8 +418,8 @@ plusBounded x y
 -- | Subtract two bounded numbers while checking for `Overflow`/`Underflow`
 minusBounded :: (MonadThrow m, Eq a, Ord a, Num a, Bounded a) => a -> a -> m a
 minusBounded x y
-  | (sigY == -1 && x > maxBound + y) = throwM Overflow
-  | (sigY ==  1 && x < minBound + y) = throwM Underflow
+  | sigY == -1 && x > maxBound + y = throwM Overflow
+  | sigY ==  1 && x < minBound + y = throwM Underflow
   | otherwise = pure (x - y)
   where sigY = signum y
 {-# INLINABLE minusBounded #-}
@@ -428,11 +428,9 @@ minusBounded x y
 divBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
 divBounded x y
   | y == 0 = throwM DivideByZero
-  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
+  | signum y == -1 && y == -1 && x == minBound = throwM Overflow
     ------------------- ^ Here we deal with special case overflow when (minBound * (-1))
   | otherwise = pure (x `div` y)
-  where
-    sigY = signum y
 {-# INLINABLE divBounded #-}
 
 
