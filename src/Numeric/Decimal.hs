@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -16,6 +18,7 @@ module Numeric.Decimal
   , productDecimal
   -- * Conversion
   -- ** Fixed
+  , FixedScale
   , toFixed
   , fromFixed
   , fromFixedBounded
@@ -31,6 +34,7 @@ import Control.Monad.Catch
 import Data.Coerce
 import Data.Fixed
 import Data.Int
+import Data.Word
 import Data.Proxy
 import Data.Scientific
 import GHC.TypeLits
@@ -56,9 +60,42 @@ type Decimal64 s = Decimal RoundHalfUp s Int64
 -- @since 0.1.0
 data RoundHalfUp
 
-instance Round RoundHalfUp where
-  roundDecimal :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
-  roundDecimal (Decimal x)
+instance Round RoundHalfUp Integer where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Int where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Int8 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Int16 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Int32 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Int64 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Word where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Word8 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Word16 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Word32 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfUp Word64 where
+  roundDecimal = roundHalfUp
+  {-# INLINABLE roundDecimal #-}
+
+roundHalfUp :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundHalfUp (Decimal x)
     | k == 0                    = Decimal x
     | r >= 5                    = Decimal (q + 1)
     | signum r < 0 && abs r > 5 = Decimal (q - 1)
@@ -67,7 +104,7 @@ instance Round RoundHalfUp where
       k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
       s1 = 10 ^ (k - 1)
       (q, r) = (`quot` s1) <$> quotRem x (s1 * 10)
-  {-# INLINABLE roundDecimal #-}
+{-# INLINABLE roundHalfUp #-}
 
 
 -- | [Round down](https://en.wikipedia.org/wiki/Rounding#Rounding_down): Round towards minus infinity:
@@ -85,15 +122,47 @@ instance Round RoundHalfUp where
 -- @since 0.1.0
 data RoundFloor
 
-instance Round RoundFloor where
-  roundDecimal :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
-  roundDecimal (Decimal x)
-    | x >= 0 || r == 0 = Decimal q
-    | otherwise = Decimal (q - 1)
-    where
-      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
-      (q, r) = quotRem x (10 ^ k)
+instance Round RoundFloor Integer where
+  roundDecimal = roundFloor
+instance Round RoundFloor Int where
+  roundDecimal = roundFloor
   {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Int8 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Int16 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Int32 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Int64 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Word where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Word8 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Word16 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Word32 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFloor Word64 where
+  roundDecimal = roundFloor
+  {-# INLINABLE roundDecimal #-}
+
+roundFloor :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundFloor (Decimal x)
+  | x >= 0 || r == 0 = Decimal q
+  | otherwise = Decimal (q - 1)
+  where
+    k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+    (q, r) = quotRem x (10 ^ k)
+{-# INLINABLE roundFloor #-}
 
 -- | [Round towards zero](https://en.wikipedia.org/wiki/Rounding#Round_towards_zero): drop
 -- the fractional digits, regardless of the sign.
@@ -111,12 +180,44 @@ instance Round RoundFloor where
 -- @since 0.1.0
 data Truncate
 
-instance Round Truncate where
-  roundDecimal :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
-  roundDecimal (Decimal x) = Decimal (quot x (10 ^ k))
-    where
-      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+instance Round Truncate Integer where
+  roundDecimal = roundTruncate
+instance Round Truncate Int where
+  roundDecimal = roundTruncate
   {-# INLINABLE roundDecimal #-}
+instance Round Truncate Int8 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Int16 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Int32 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Int64 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Word where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Word8 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Word16 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Word32 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+instance Round Truncate Word64 where
+  roundDecimal = roundTruncate
+  {-# INLINABLE roundDecimal #-}
+
+roundTruncate :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundTruncate (Decimal x) = Decimal (quot x (10 ^ k))
+  where
+    k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+{-# INLINABLE roundTruncate #-}
 
 -- | /O(1)/ - Conversion of a list.
 --
@@ -160,7 +261,7 @@ sumDecimal = foldM plusDecimal (Decimal 0)
 --
 -- @since 0.1.0
 productDecimal ::
-     (MonadThrow m, Foldable f, KnownNat s, Round r, Integral p, Bounded p)
+     (MonadThrow m, Foldable f, KnownNat s, Round r Integer, Integral p, Bounded p)
   => f (Decimal r s p)
   -> m (Decimal r s p)
 productDecimal ds = fromNumBounded 1 >>= (\acc -> foldM timesDecimalRounded acc ds)

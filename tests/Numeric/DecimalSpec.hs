@@ -148,7 +148,17 @@ prop_quotBounded (Extremum x) (Extremum y) =
 
 
 specBouned ::
-     forall a. (Typeable a, Arbitrary a, Show a, Integral a, Bounded a, NFData a)
+     forall a.
+     ( Typeable a
+     , Arbitrary a
+     , Show a
+     , Integral a
+     , Bounded a
+     , NFData a
+     , Round RoundHalfUp a
+     , Round RoundFloor a
+     , Round Truncate a
+     )
   => Proxy a
   -> Spec
 specBouned px = do
@@ -175,6 +185,7 @@ specBouned px = do
   specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 0) px
   specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 1) px
   specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 2) px
+  specRounding @0 @0 @a
   specRounding @1 @0 @a
   specRounding @1 @1 @a
   specRounding @2 @0 @a
@@ -201,26 +212,41 @@ specRounding ::
      ( KnownNat s
      , KnownNat k
      , KnownNat (s + k)
-     , Bounded p
-     , Integral p
      , Typeable p
      , Arbitrary p
+     , Round RoundHalfUp p
+     , Round RoundFloor p
+     , Round Truncate p
      )
   => Spec
 specRounding = do
-  prop (("Rounding "++) . showsDecimalType @RoundHalfUp @(s + k) @p $ "") $
+  prop (propNamePrefix . showsDecimalType @RoundHalfUp @(s + k) @p $ "") $
     prop_Rounding @RoundHalfUp @s @k @p
     (roundHalfUpTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @Truncate @(s + k) @p $ "") $
+    prop_Rounding @Truncate @s @k @p
+    (roundTruncateTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundFloor @(s + k) @p $ "") $
+    prop_Rounding @RoundFloor @s @k @p
+    (roundFloorTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  where
+    propNamePrefix =
+      ("Rounding to " ++) . showsTypeRep (typeRep (Proxy :: Proxy s)) . (" places " ++)
 
 prop_Rounding ::
-     forall r s k a. (KnownNat s, KnownNat k, KnownNat (s + k), Bounded a, Integral a, Round r)
+     forall r s k a.
+     ( KnownNat s
+     , KnownNat k
+     , KnownNat (s + k)
+     , Round r a
+     )
   => (Rational -> Rational)
   -> Decimal r (s + k) a
   -> Property
 prop_Rounding roundTo d =
   let r = toRationalDecimal d
-   in (roundDecimal d :: Decimal r s a) ===
-      throwDecimal (fromRationalDecimalBounded (roundTo r))
+   in fmap toInteger (roundDecimal d :: Decimal r s a) ===
+      throwDecimal (fromRationalDecimal (roundTo r))
 
 showsDecimalType ::
      forall r (s :: Nat) p. (Typeable r, Typeable s, Typeable p)
@@ -301,6 +327,22 @@ spec = do
     specBouned (Proxy :: Proxy Word16)
     specBouned (Proxy :: Proxy Word32)
     specBouned (Proxy :: Proxy Word64)
+  describe "Integer" $ do
+    specRounding @0 @0 @Integer
+    specRounding @1 @0 @Integer
+    specRounding @1 @1 @Integer
+    specRounding @2 @0 @Integer
+    specRounding @2 @1 @Integer
+    specRounding @2 @2 @Integer
+    specRounding @3 @0 @Integer
+    specRounding @3 @1 @Integer
+    specRounding @3 @2 @Integer
+    specRounding @3 @3 @Integer
+    specRounding @4 @0 @Integer
+    specRounding @4 @1 @Integer
+    specRounding @4 @2 @Integer
+    specRounding @4 @3 @Integer
+    specRounding @4 @4 @Integer
 
 
 
@@ -329,6 +371,16 @@ assertExceptionIO isExc action =
 roundHalfUpTo :: Natural -> Rational -> Rational
 roundHalfUpTo to rational =
   floor ((truncate (rational * ((s10 * 10) % 1) + 5) :: Integer) % 10) % s10
+  where
+    s10 = 10 ^ to :: Integer
+
+roundFloorTo :: Natural -> Rational -> Rational
+roundFloorTo to rational = (floor (rational * (s10 % 1)) :: Integer) % s10
+  where
+    s10 = 10 ^ to :: Integer
+
+roundTruncateTo :: Natural -> Rational -> Rational
+roundTruncateTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
