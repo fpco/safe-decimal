@@ -1,5 +1,5 @@
 name:           safe-decimal
-version:        0.1.0.0
+version:        0.2.0.0
 description:    Please see the README on GitHub at <https://github.com/fpco/safe-decimal#readme>
 synopsis:       Safe and very efficient arithmetic operations on fixed decimal point numbers
 category:       Math, Numeric, Numerical
@@ -10,7 +10,7 @@ maintainer:     alexey@fpcomplete.com
 copyright:      2018-2019 FP Complete
 license:        BSD3
 license-file:   LICENSE
-build-type:     Simple
+build-type:     Custom
 cabal-version:  >= 1.10
 extra-source-files: ChangeLog.md
                     README.md
@@ -18,6 +18,12 @@ extra-source-files: ChangeLog.md
 source-repository head
   type: git
   location: https://github.com/fpco/safe-decimal
+
+custom-setup
+  setup-depends:
+      base
+    , Cabal
+    , cabal-doctest >=1.0.6
 
 library
   exposed-modules: Numeric.Decimal
@@ -29,6 +35,23 @@ library
                , scientific
   ghc-options: -Wall
   default-language: Haskell2010
+
+test-suite doctests
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   tests
+  main-is:          doctests.hs
+  build-depends: base
+               , doctest >=0.15
+               , QuickCheck
+               , safe-decimal
+               , template-haskell
+  default-language:    Haskell2010
+  ghc-options:        -Wall
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
+                      -fno-warn-orphans
+                      -threaded
 
 test-suite tests
   type: exitcode-stdio-1.0

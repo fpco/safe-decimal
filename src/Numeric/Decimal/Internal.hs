@@ -1,12 +1,13 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module Numeric.Decimal.Internal
   ( Decimal(..)
   , Round(..)
@@ -15,6 +16,9 @@ module Numeric.Decimal.Internal
   , splitDecimal
   , getScale
   , fromNum
+  , fromNumBounded
+  , scaleUp
+  , scaleUpBounded
   , parseDecimalBounded
   -- * Algebra
   , plusDecimal
@@ -27,6 +31,9 @@ module Numeric.Decimal.Internal
   , quotRemBounded
   , quotRemDecimalBounded
   , fromIntegerDecimalBounded
+  , toRationalDecimal
+  , fromRationalDecimal
+  , fromRationalDecimalBounded
   , fromRationalDecimalRounded
   , liftDecimal
   , liftDecimal2
@@ -40,27 +47,31 @@ module Numeric.Decimal.Internal
   , fromIntegerScaleBounded
   , divBounded
   , quotBounded
+  -- ** Exceptions
+  , MonadThrow(..)
+  , ArithException(..)
+  , SomeException
   ) where
 
-import           Control.Applicative
-import           Control.DeepSeq
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.Catch
-import           Data.Char
-import           Data.Foldable       as F
-import           Data.Int
-import           Data.List
-import           Data.Proxy
-import           Data.Ratio
-import           Data.Word
-import           GHC.Generics        (Generic)
-import           GHC.TypeLits
-import           Text.Printf
+import Control.Applicative
+import Control.DeepSeq
+import Control.Exception
+import Control.Monad
+import Control.Monad.Catch
+import Data.Char
+import Data.Foldable as F
+import Data.Int
+import Data.List
+import Data.Proxy
+import Data.Ratio
+import Data.Word
+import GHC.Generics (Generic)
+import GHC.TypeLits
+import Text.Printf
 
 
 -- | Decimal number with custom precision (@p@) and type level scaling (@s@) parameter (i.e. number
--- of digits after the decimal point). As well as the rounding (@r@) strategy to use
+-- of digits after the decimal point). As well as the rounding (@r@) strategy to use.
 newtype Decimal r (s :: Nat) p = Decimal p
   deriving (Enum, Ord, Eq, NFData, Functor, Generic)
 
@@ -71,32 +82,125 @@ instance Applicative (Decimal r s) where
   {-# INLINABLE (<*>) #-}
 
 
+-- | Rounding strategy to be used with decimal numbers.
+--
+-- @since 0.1.0
 class Round r where
+
+  -- | Reduce the scale of a number by @k@ decimal places using rounding strategy @r@
+  --
+  -- @since 0.1.0
   roundDecimal :: (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
 
-
--- | Get the scale of the `Decimal`. Argument is not evaluated.
+-- | Get the scale of a `Decimal`. Argument is not evaluated.
+--
+-- >>> import Numeric.Decimal
+-- >>> d = 36 :: Decimal RoundHalfUp 5 Integer
+-- >>> d
+-- 36.00000
+-- >>> getScale d
+-- 5
+--
+-- @since 0.1.0
 getScale :: forall r s p . KnownNat s => Decimal r s p -> Int
 getScale _ = fromIntegral (natVal (Proxy :: Proxy s))
 
+
+-- | Increase the precision of a `Decimal`, use `roundDecimal` if inverse is desired.
+--
+-- >>> import Numeric.Decimal
+-- >>> d2 <- 1.65 :: IO (Decimal RoundHalfUp 2 Integer)
+-- >>> d2
+-- 1.65
+-- >>> scaleUp d2 :: Decimal RoundHalfUp 50 Integer
+-- 1.65000000000000000000000000000000000000000000000000
+--
+-- @since 0.1.1
+scaleUp ::
+     forall k r n. KnownNat k
+  => Decimal r n Integer
+  -> Decimal r (n + k) Integer
+scaleUp (Decimal d) = Decimal (d * (10 ^ natVal (Proxy :: Proxy k)))
+
+-- | Increase the precision of a `Decimal` backed by a bounded type, use `roundDecimal` if
+-- inverse is desired.
+--
+-- >>> import Numeric.Decimal
+-- >>> d2 <- 1.65 :: IO (Decimal RoundHalfUp 2 Int16)
+-- >>> scaleUpBounded d2 :: IO (Decimal RoundHalfUp 3 Int16)
+-- 1.650
+-- >>> scaleUpBounded d2 :: IO (Decimal RoundHalfUp 4 Int16)
+-- 1.6500
+-- >>> scaleUpBounded d2 :: IO (Decimal RoundHalfUp 5 Int16)
+-- *** Exception: arithmetic overflow
+--
+-- @since 0.1.1
+scaleUpBounded ::
+     forall k r n p m. (MonadThrow m, Integral p, Bounded p, KnownNat k)
+  => Decimal r n p
+  -> m (Decimal r (n + k) p)
+scaleUpBounded (Decimal d) = do
+  i <- fromIntegerBounded (10 ^ natVal (Proxy :: Proxy k))
+  Decimal <$> timesBounded d i
+
 -- | Split the number at the decimal point, i.e. whole number and the fraction
+--
+-- >>> import Numeric.Decimal
+-- >>> splitDecimal <$> (12.34 :: IO (Decimal RoundHalfUp 2 Int))
+-- (12,34)
+--
+-- @since 0.1.0
 splitDecimal :: (Integral p, KnownNat s) => Decimal r s p -> (p, p)
 splitDecimal d@(Decimal v) = v `quotRem` (10 ^ getScale d)
 
 -- | Wrap an `Integral` as a `Decimal`. No scaling will be done.
+--
+-- >>> import Numeric.Decimal
+-- >>> wrapDecimal 1234 :: Decimal RoundHalfUp 4 Int
+-- 0.1234
+-- >>> wrapDecimal 1234 :: Decimal RoundHalfUp 2 Int
+-- 12.34
+--
+-- @since 0.1.0
 wrapDecimal :: Integral p => p -> Decimal r s p
 wrapDecimal = Decimal
 
 -- | Get out the underlying representation for the decimal number. No scaling will be done.
+--
+-- >>> import Numeric.Decimal
+-- >>> unwrapDecimal (wrapDecimal 1234 :: Decimal RoundHalfUp 4 Int)
+-- 1234
+--
+-- @since 0.1.0
 unwrapDecimal :: Decimal r s p -> p
 unwrapDecimal (Decimal p) = p
 
--- | This operation is susceptible to overflows, since it performs the scaling.
-fromNum :: forall r s p . (Num p, KnownNat s) => p -> Decimal r s p
+-- | Convert an `Integer` while performing the necessary scaling
+--
+-- >>> import Numeric.Decimal
+-- >>> fromNum 1234 :: Decimal RoundHalfUp 4 Integer
+-- 1234.0000
+--
+-- @since 0.1.0
+fromNum :: forall r s . KnownNat s => Integer -> Decimal r s Integer
 fromNum x = Decimal (x * (10 ^ s))
   where
     s = natVal (Proxy :: Proxy s)
 {-# INLINABLE fromNum #-}
+
+-- | Convert a bounded integeral into a decimal, while performing the necessary scaling
+--
+-- >>> import Numeric.Decimal
+-- >>> fromNumBounded 1234 :: IO (Decimal RoundHalfUp 4 Int)
+-- 1234.0000
+-- >>> fromNumBounded 1234 :: IO (Decimal RoundHalfUp 4 Int16)
+-- *** Exception: arithmetic overflow
+--
+-- @since 0.1.0
+fromNumBounded ::
+     (Integral p, Bounded p, KnownNat s, MonadThrow m) => p -> m (Decimal r s p)
+fromNumBounded = fromIntegerDecimalBounded . fromNum . toInteger
+{-# INLINABLE fromNumBounded #-}
 
 
 liftDecimal :: (p1 -> p2) -> Decimal r s p1 -> Decimal r s p2
@@ -154,17 +258,10 @@ instance (Round r, KnownNat s) => Real (Decimal r s Integer) where
   toRational (Decimal p) = p % (10 ^ natVal (Proxy :: Proxy s))
   {-# INLINABLE toRational #-}
 
--- | The order of fractional and negation for literals prevents rational numbers to be negative in
--- `fromRational` function, which can cause some issues in rounding:
---
--- >>> fromRational (-23.5) :: Either SomeException (Decimal RoundHalfUp 0 Integer)
--- Right -23
--- >>> -23.5 :: Either SomeException (Decimal RoundHalfUp 0 Integer)
--- Right -24
 instance (MonadThrow m, Round r, KnownNat s) => Fractional (m (Decimal r s Integer)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
-  fromRational = fromRationalDecimalRounded
+  fromRational = fromRationalDecimal
   {-# INLINABLE fromRational #-}
 
 instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Integer)) where
@@ -194,7 +291,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int)) where
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -208,7 +305,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int8)) where
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -222,7 +319,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int16)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -236,7 +333,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int32)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -250,7 +347,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Int64)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
@@ -264,7 +361,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word)) where
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -278,7 +375,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word8)) wher
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -292,7 +389,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word16)) whe
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -306,7 +403,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word32)) whe
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -320,7 +417,7 @@ instance (MonadThrow m, Round r, KnownNat s) => Num (m (Decimal r s Word64)) whe
   {-# INLINABLE (-) #-}
   (*) = bindM2 timesDecimalRounded
   {-# INLINABLE (*) #-}
-  signum = fmap signumDecimal
+  signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
@@ -472,10 +569,10 @@ quotRemDecimalBounded (Decimal raw) i
 -- | Multiply two decimal numbers while checking for `Overflow`
 timesBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
 timesBounded x y
-  | (sigY == -1 && y == -1 && x == minBound) = throwM Overflow
-  | (signum x == -1 && x == -1 && y == minBound) = throwM Overflow
-  | (sigY ==  1 && (minBoundQuotY > x || x > maxBoundQuotY)) = eitherOverUnder
-  | (sigY == -1 && y /= -1 && (minBoundQuotY < x || x < maxBoundQuotY)) = eitherOverUnder
+  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
+  | signum x == -1 && x == -1 && y == minBound = throwM Overflow
+  | sigY ==  1 && (minBoundQuotY > x || x > maxBoundQuotY) = eitherOverUnder
+  | sigY == -1 && y /= -1 && (minBoundQuotY < x || x < maxBoundQuotY) = eitherOverUnder
   | otherwise = pure (x * y)
   where
     sigY = signum y
@@ -563,13 +660,44 @@ timesDecimalRounded dx dy =
   fromIntegerDecimalBounded $ roundDecimal $ timesDecimal (fmap toInteger dx) (fmap toInteger dy)
 {-# INLINABLE timesDecimalRounded #-}
 
+-- | Convert a decimal to a Rational
+--
+-- @since 0.2.0
+toRationalDecimal ::
+     (KnownNat s, Round r, Integral p) => Decimal r s p -> Rational
+toRationalDecimal d = toRational (toInteger <$> d)
+
+fromRationalDecimal ::
+     forall m r s. (MonadThrow m, KnownNat s, Round r)
+  => Rational
+  -> m (Decimal r s Integer)
+fromRationalDecimal rational
+  | denominator rational == 0 = throwM DivideByZero
+  | fromIntegral t /= scaledRat = throwM Underflow
+  | otherwise = pure truncated
+  where
+    truncated@(Decimal t) = Decimal (truncate scaledRat) :: Decimal r s Integer
+    scaledRat = rational * (d % 1)
+    d = 10 ^ natVal (Proxy :: Proxy s)
+{-# INLINABLE fromRationalDecimal #-}
+
+
+fromRationalDecimalBounded ::
+     (MonadThrow m, KnownNat s, Round r, Integral p, Bounded p)
+  => Rational
+  -> m (Decimal r s p)
+fromRationalDecimalBounded r = fromRationalDecimal r >>= fromIntegerDecimalBounded
+{-# INLINABLE fromRationalDecimalBounded #-}
+
 fromRationalDecimalRounded ::
-     forall m r s p. (MonadThrow m, KnownNat s, Round r, Integral p)
+     forall m r s p. (MonadThrow m, KnownNat s, Round r, Bounded p, Integral p)
   => Rational
   -> m (Decimal r s p)
 fromRationalDecimalRounded rational
   | denominator rational == 0 = throwM DivideByZero
-  | otherwise = pure $ roundDecimal (Decimal (truncate scaledRat) :: Decimal r (s + 1) p)
+  | otherwise =
+    fromIntegerDecimalBounded $
+    roundDecimal (Decimal (truncate scaledRat) :: Decimal r (s + 1) Integer)
   where
     scaledRat = rational * (d % 1)
     d = 10 ^ (natVal (Proxy :: Proxy s) + 1)
@@ -577,11 +705,17 @@ fromRationalDecimalRounded rational
 
 
 -- | Compute signum of a decimal, always one of 1, 0 or -1
-signumDecimal :: (Num p, KnownNat s) => Decimal r s p -> Decimal r s p
-signumDecimal (Decimal d) = fromNum (signum d) -- It is safe to scale since signum does not widen
-                                               -- the range, thus will always fall into a valid
-                                               -- value
+signumDecimal :: KnownNat s => Decimal r s Integer -> Decimal r s Integer
+signumDecimal (Decimal d) = fromNum (signum d)
 {-# INLINABLE signumDecimal #-}
+
+-- | Compute signum of a decimal, always one of 1, 0 or -1
+signumDecimalBounded ::
+     (KnownNat s, MonadThrow m, Integral p, Bounded p)
+  => Decimal r s p
+  -> m (Decimal r s p)
+signumDecimalBounded d = fromIntegerDecimalBounded $ signumDecimal (toInteger <$> d)
+{-# INLINABLE signumDecimalBounded #-}
 
 
 -----------------------------------
@@ -638,8 +772,7 @@ parseDecimalBounded checkForPlusSign rawInput
     (num, leftOver) <- digits signLeftOver
     let s = fromIntegral (natVal spx) :: Int
     case uncons leftOver of
-      Nothing -> do
-        toStringError (fromIntegersScaleBounded spx (sign * num) 0)
+      Nothing -> toStringError (fromIntegersScaleBounded spx (sign * num) 0)
       Just ('.', digitsTxt)
         | length digitsTxt > s -> Left $ "Too much text after the decimal: " ++ digitsTxt
       Just ('.', digitsTxt)
@@ -680,5 +813,5 @@ digits str
   | otherwise = Right (F.foldl' go 0 h, t)
   where
     (h, t) = span isDigit str
-    go n d = (n * 10 + fromIntegral (digitToInt d))
+    go n d = n * 10 + fromIntegral (digitToInt d)
 

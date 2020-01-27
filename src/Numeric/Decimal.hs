@@ -1,10 +1,9 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE InstanceSigs               #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE NegativeLiterals           #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module Numeric.Decimal
   ( Decimal64
   , RoundHalfUp
@@ -16,24 +15,45 @@ module Numeric.Decimal
   , sumDecimal
   , productDecimal
   -- * Conversion
+  -- ** Fixed
+  , toFixed
+  , fromFixed
+  , fromFixedBounded
+  -- ** Scientific
   , toScientific
   , fromScientific
   , fromScientificBounded
   ) where
 
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.Catch
-import           Data.Coerce
-import           Data.Int
-import           Data.Proxy
-import           Data.Scientific
-import           GHC.TypeLits
-import           Numeric.Decimal.Internal
+import Control.Exception
+import Control.Monad
+import Control.Monad.Catch
+import Data.Coerce
+import Data.Fixed
+import Data.Int
+import Data.Proxy
+import Data.Scientific
+import GHC.TypeLits
+import Numeric.Decimal.Internal
 
--- | Most common Decimal type backed by `Int64` and standard rounding
+-- | A pretty common Decimal type backed by `Int64` and standard rounding
 type Decimal64 s = Decimal RoundHalfUp s Int64
 
+
+-- | [Round half up](https://en.wikipedia.org/wiki/Rounding#Round_half_up): A most common
+-- rounding strategy that we learn at school:
+--
+-- >>> :set -XDataKinds
+-- >>> roundDecimal <$> (3.65 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.75 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (3.89 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- 3.9
+-- >>> roundDecimal <$> (-3.65 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- -3.6
+--
+-- @since 0.1.0
 data RoundHalfUp
 
 instance Round RoundHalfUp where
@@ -47,6 +67,20 @@ instance Round RoundHalfUp where
       (q, r) = quotRem x (10 ^ k)
   {-# INLINABLE roundDecimal #-}
 
+
+-- | [Round down](https://en.wikipedia.org/wiki/Rounding#Rounding_down): Round towards minus infinity:
+--
+-- >>> :set -XDataKinds
+-- >>> roundDecimal <$> (3.65 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- 3.6
+-- >>> roundDecimal <$> (3.75 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.89 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (-3.65 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- -3.7
+--
+-- @since 0.1.0
 data RoundFloor
 
 instance Round RoundFloor where
@@ -59,6 +93,20 @@ instance Round RoundFloor where
       (q, r) = quotRem x (10 ^ k)
   {-# INLINABLE roundDecimal #-}
 
+-- | [Round towards zero](https://en.wikipedia.org/wiki/Rounding#Round_towards_zero): drop
+-- the fractional digits, regardless of the sign.
+--
+-- >>> :set -XDataKinds
+-- >>> roundDecimal <$> (3.65 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
+-- 3.6
+-- >>> roundDecimal <$> (3.75 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.89 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (-3.65 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
+-- -3.6
+--
+-- @since 0.1.0
 data Truncate
 
 instance Round Truncate where
@@ -72,12 +120,14 @@ instance Round Truncate where
 --
 -- __Note__: It doesn't do any scaling, eg:
 --
+-- >>> :set -XDataKinds
+-- >>> import Numeric.Decimal
 -- >>> decimalList [1,20,300] :: [Decimal RoundHalfUp 2 Int]
 -- [0.01,0.20,3.00]
 --
 -- If scaling is what you need use `fromIntegral` instead:
 --
--- >>> mapM fromIntegral ([1,20,300] :: [Int]) :: Either SomeException [Decimal RoundHalfUp 2 Int]
+-- >>> mapM fromIntegral [1, 20, 300 :: Int] :: Either SomeException [Decimal RoundHalfUp 2 Int]
 -- Right [1.00,20.00,300.00]
 --
 decimalList :: Integral p => [p] -> [Decimal r s p]
@@ -85,6 +135,12 @@ decimalList = coerce
 
 
 -- | Sum a list of decimal numbers
+--
+-- >>> :set -XDataKinds
+-- >>> mapM fromRational [1.1, 20.02, 300.003] >>= sumDecimal :: IO (Decimal RoundHalfUp 3 Int)
+-- 321.123
+--
+-- @since 0.1.0
 sumDecimal ::
      (MonadThrow m, Foldable f, Eq p, Ord p, Num p, Bounded p)
   => f (Decimal r s p)
@@ -93,23 +149,36 @@ sumDecimal = foldM plusDecimal (Decimal 0)
 {-# INLINABLE sumDecimal #-}
 
 -- | Multiply all decimal numbers in the list while doing rounding.
+--
+-- >>> :set -XDataKinds
+-- >>> product [1.1, 20.02, 300.003] :: Double
+-- 6606.666066000001
+-- >>> mapM fromRational [1.1, 20.02, 300.003] >>= productDecimal :: IO (Decimal RoundHalfUp 4 Int)
+-- 6606.6661
+--
+-- @since 0.1.0
 productDecimal ::
      (MonadThrow m, Foldable f, KnownNat s, Round r, Integral p, Bounded p)
   => f (Decimal r s p)
   -> m (Decimal r s p)
-productDecimal = foldM timesDecimalRounded (fromNum 1)
+productDecimal ds = fromNumBounded 1 >>= (\acc -> foldM timesDecimalRounded acc ds)
 {-# INLINABLE productDecimal #-}
 
 
 
 ---- Scientific
 
--- | Convert Decimal to Scientific
+
+-- | Convert a `Decimal` to `Scientific`
+--
+-- @since 0.1.0
 toScientific :: (Integral p, KnownNat s) => Decimal r s p -> Scientific
 toScientific dec = scientific (toInteger (unwrapDecimal dec)) (negate (getScale dec))
 
 -- | Convert Scientific to Decimal without loss of precision. Will return `Left` `Underflow` if
 -- `Scientific` has too many decimal places, more than `Decimal` scaling is capable to handle.
+--
+-- @since 0.1.0
 fromScientific :: forall m r s . (MonadThrow m, KnownNat s) => Scientific -> m (Decimal r s Integer)
 fromScientific num
   | point10 > s = throwM Underflow
@@ -119,6 +188,8 @@ fromScientific num
       point10 = toInteger (negate (base10Exponent num))
 
 -- | Convert from Scientific to Decimal while checking for Overflow/Underflow
+--
+-- @since 0.1.0
 fromScientificBounded ::
      forall m r s p. (MonadThrow m, Integral p, Bounded p, KnownNat s)
   => Scientific
@@ -126,3 +197,54 @@ fromScientificBounded ::
 fromScientificBounded num = do
   Decimal integer :: Decimal r s Integer <- fromScientific num
   Decimal <$> fromIntegerBounded integer
+
+
+type family FixedScale e :: Nat
+
+type instance FixedScale E0 = 0
+type instance FixedScale E1 = 1
+type instance FixedScale E2 = 2
+type instance FixedScale E3 = 3
+type instance FixedScale E6 = 6
+type instance FixedScale E9 = 9
+type instance FixedScale E12 = 12
+
+
+-- | Convert a `Decimal` to a `Fixed` with the exactly same precision.
+--
+-- >>> toFixed (3 :: Decimal RoundFloor 2 Integer) :: Fixed E2
+-- 3.00
+-- >>> toFixed <$> (3.65 :: IO (Decimal RoundFloor 2 Int)) :: IO (Fixed E2)
+-- 3.65
+-- >>> toFixed $ fromFixed (123.45 :: Fixed E2) :: Fixed E2
+-- 123.45
+--
+-- @since 0.2.0
+toFixed :: (s ~ FixedScale e, Integral p) => Decimal r s p -> Fixed e
+toFixed = MkFixed . toInteger . unwrapDecimal
+
+-- | Convert a `Fixed` to a decimal with the exactly same precision
+--
+-- >>> fromFixed (123.45 :: Fixed E2)
+-- 123.45
+--
+-- @since 0.2.0
+fromFixed :: s ~ FixedScale e => Fixed e -> Decimal r s Integer
+fromFixed = coerce
+
+-- | Convert a `Fixed` to a decimal backed by a bounded integral with the exactly same
+-- precision
+--
+-- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal Truncate 3 Int)
+-- 123.458
+-- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal Truncate 3 Int8)
+-- *** Exception: arithmetic overflow
+-- >>> fromFixedBounded (-123.458 :: Fixed E3) :: IO (Decimal Truncate 3 Word)
+-- *** Exception: arithmetic underflow
+--
+-- @since 0.2.0
+fromFixedBounded ::
+     (s ~ FixedScale e, MonadThrow m, Integral p, Bounded p)
+  => Fixed e
+  -> m (Decimal r s p)
+fromFixedBounded = fromIntegerDecimalBounded . fromFixed

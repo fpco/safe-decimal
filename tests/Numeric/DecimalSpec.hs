@@ -1,23 +1,24 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Numeric.DecimalSpec (spec) where
 
-import           Control.DeepSeq
-import           Control.Exception       hiding (assert)
-import           Control.Monad
-import           Data.Either
-import           Data.Int
-import           Data.Proxy
-import           Data.Scientific
-import           Data.Typeable
-import           Data.Word
-import           GHC.TypeLits
-import           Numeric.Decimal
-import           Test.Hspec
-import           Test.QuickCheck
-import           Test.QuickCheck.Monadic
+import Control.DeepSeq
+import Control.Exception hiding (assert)
+import Control.Monad
+import Data.Either
+import Data.Int
+import Data.Proxy
+import Data.Ratio
+import Data.Scientific
+import Data.Typeable
+import Data.Word
+import GHC.TypeLits
+import Numeric.Decimal
+import Numeric.Natural
+import Test.Hspec
+import Test.QuickCheck
+import Test.QuickCheck.Monadic
 
 -- | Values generated will usually be somewhere close to the bounds.
 newtype Extremum a = Extremum a deriving Show
@@ -25,18 +26,20 @@ newtype Extremum a = Extremum a deriving Show
 instance (Arbitrary a, Bounded a, Integral a) => Arbitrary (Extremum a) where
   arbitrary = do
     NonNegative x <- arbitrary
-    frequency $
-      [(f, pure (Extremum v)) | (f, v) <- [(40, minBound + x), (40, maxBound - x), (20, x)]]
+    frequency
+      [ (f, pure (Extremum v))
+      | (f, v) <- [(40, minBound + x), (40, maxBound - x), (20, x)]
+      ]
 
 instance (Arbitrary p) => Arbitrary (Decimal r s p) where
   arbitrary = fmap pure arbitrary
 
 showType :: forall t . Typeable t => Proxy t -> String
-showType _ = (showsTypeRep (typeRep (Proxy :: Proxy t))) ""
+showType _ = showsTypeRep (typeRep (Proxy :: Proxy t)) ""
 
 
 prop_plusBounded ::
-     (Arbitrary a, Show a, Integral a, Bounded a)
+     (Show a, Integral a, Bounded a)
   => [ArithException] -- ^ Exceptions to expect
   -> Extremum a
   -> Extremum a
@@ -53,7 +56,7 @@ prop_plusBounded excs (Extremum x) (Extremum y) =
 
 
 prop_minusBounded ::
-     (Arbitrary a, Show a, Integral a, Bounded a)
+     (Show a, Integral a, Bounded a)
   => [ArithException] -- ^ Exceptions to expect
   -> Extremum a
   -> Extremum a
@@ -69,7 +72,7 @@ prop_minusBounded excs (Extremum x) (Extremum y) =
     resBounded = toArithException $ minusBounded x y
 
 prop_timesBounded ::
-     (Arbitrary a, Show a, Integral a, Bounded a)
+     (Show a, Integral a, Bounded a)
   => [ArithException] -- ^ Exceptions to expect
   -> Extremum a
   -> Extremum a
@@ -85,7 +88,7 @@ prop_timesBounded excs (Extremum x) (Extremum y) =
     resBounded = toArithException $ timesBounded x y
 
 prop_fromIntegerBounded ::
-  forall a . (Arbitrary a, Show a, Integral a, Bounded a)
+  forall a . (Show a, Integral a, Bounded a)
   => [ArithException] -- ^ Exceptions to expect
   -> Int -- ^ This is used for scaling
   -> Extremum a
@@ -112,7 +115,7 @@ toArithException eRes =
     Right res -> Right res
 
 prop_divBounded ::
-     (Arbitrary a, Show a, Integral a, Bounded a, NFData a)
+     (Show a, Integral a, Bounded a, NFData a)
   => Extremum a
   -> Extremum a
   -> Property
@@ -125,7 +128,7 @@ prop_divBounded (Extremum x) (Extremum y) =
     resBounded = toArithException $ divBounded x y
 
 prop_quotBounded ::
-     (Arbitrary a, Show a, Integral a, Bounded a, NFData a)
+     (Show a, Integral a, Bounded a, NFData a)
   => Extremum a
   -> Extremum a
   -> Property
@@ -146,8 +149,13 @@ specBouned px = do
   let typeName = showsTypeRep (typeRep px) ""
   describe ("Bounded: " ++ typeName) $ do
     let excs = [Overflow, Underflow]
-        plusExcs = if (minBound :: a) >= 0 then [Overflow] else excs
-    it "plusBounded" $ property (prop_plusBounded plusExcs :: Extremum a -> Extremum a -> Property)
+        plusExcs =
+          if (minBound :: a) >= 0
+            then [Overflow]
+            else excs
+    it "plusBounded" $
+      property
+        (prop_plusBounded plusExcs :: Extremum a -> Extremum a -> Property)
     it "minusBounded" $
       property (prop_minusBounded excs :: Extremum a -> Extremum a -> Property)
     it "timesBounded" $
@@ -158,18 +166,26 @@ specBouned px = do
       property (prop_divBounded :: Extremum a -> Extremum a -> Property)
     it "quotBounded" $
       property (prop_quotBounded :: Extremum a -> Extremum a -> Property)
-  specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 0) px
-  specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 1) px
-  specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 2) px
+  specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 0) px
+  specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 1) px
+  specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 2) px
   let maxLen = length (show (maxBound :: a))
-  when (maxLen >= 3) $ do
-    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 3) px
-  when (maxLen >= 4) $ do
-    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 4) px
-  when (maxLen >= 5) $ do
-    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 5) px
-  when (maxLen >= 19) $ do
-    specBoundedDecimal  (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 19) px
+  when (maxLen >= 3) $
+    specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 3) px
+  when (maxLen >= 4) $
+    specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 4) px
+  when (maxLen >= 5) $
+    specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 5) px
+  when (maxLen >= 19) $
+    specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 19) px
+  it "rounding" $
+    property $ \(d :: Decimal RoundHalfUp 1 a) ->
+      let r = toRationalDecimal d
+       in (roundDecimal d :: Decimal RoundHalfUp 0 a) ===
+          throwDecimal (fromRationalDecimalBounded (roundHalfUpTo 0 r))
+
+throwDecimal :: Either SomeException (Decimal r s p) -> Decimal r s p
+throwDecimal = either throw id
 
 specBoundedDecimal ::
      forall r s p. (Typeable r, Typeable p, KnownNat s, Show p, Integral p, Bounded p, Arbitrary p)
@@ -177,7 +193,7 @@ specBoundedDecimal ::
   -> Proxy s
   -> Proxy p
   -> Spec
-specBoundedDecimal pr ps pp = do
+specBoundedDecimal pr ps pp =
   describe
     ("Decimal " ++ showType (Proxy :: Proxy r) ++ " " ++ show (natVal ps) ++ " " ++
      showType (Proxy :: Proxy p)) $ do
@@ -187,7 +203,7 @@ specBoundedDecimal pr ps pp = do
     -- TODO: x times integral / integral == x
 
 prop_toFromScientific ::
-     (Arbitrary p, Integral p, KnownNat s)
+     (Integral p, KnownNat s)
   => Proxy r
   -> Proxy s
   -> Proxy p
@@ -198,7 +214,7 @@ prop_toFromScientific _ _ _ d =
   (Right d === toArithException (fmap fromInteger <$> fromScientific (normalize (toScientific d))))
 
 prop_toFromScientificBounded ::
-     (Arbitrary p, Integral p, Bounded p, KnownNat s)
+     (Integral p, Bounded p, KnownNat s)
   => Proxy r
   -> Proxy s
   -> Proxy p
@@ -209,7 +225,7 @@ prop_toFromScientificBounded _ _ _ d =
   (Right d === toArithException (fromScientificBounded (normalize (toScientific d))))
 
 prop_showParseBouded ::
-     (Arbitrary p, Show p, Integral p, Bounded p, KnownNat s)
+     (Show p, Integral p, Bounded p, KnownNat s)
   => Proxy r
   -> Proxy s
   -> Proxy p
@@ -258,3 +274,28 @@ assertExceptionIO isExc action =
                res `deepseq` return False) $ \exc ->
            show exc `deepseq` return (isExc exc))
     assert hasFailed
+
+roundHalfUpTo :: Natural -> Rational -> Rational
+roundHalfUpTo to rational =
+  floor ((truncate (rational * ((s10 * 10) % 1) + 5) :: Integer) % 10) % s10
+  where
+    s10 = 10 ^ to :: Integer
+
+-- Use for testing once HalfAwayFromZero is implemented
+_roundCommercial :: Natural -> Rational -> Rational
+_roundCommercial to rational
+  | rational < 0 = negate (roundPositive (negate rational))
+  | otherwise = roundPositive rational
+  where
+    s10 = 10 ^ to :: Integer
+    roundPositive positiveRational =
+      let (q, r) = quotRem (truncate (positiveRational * (s10 * 10 % 1)) :: Integer) 10
+       in (if r >= 5
+             then q + 1
+             else q) %
+          s10
+
+-- Once round half even is implemented, this can be used for testing
+_roundBankerTo :: Integer -> Rational -> Rational
+_roundBankerTo to rational =
+  fromInteger (round $ rational * (10 ^ to)) / 10 ^ to

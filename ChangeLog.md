@@ -1,3 +1,12 @@
 # Changelog for decimal64
 
-## Unreleased changes
+## 0.2.0
+
+* Fix conversion `fromRational` to throw `Underflow` instead of rounding. Without this fix
+  there was unexpected behavior on negative numbers.
+* Addition of `scaleUp` and `scaleUpBounded`
+* Addition of `toFixed`, `fromFixed` and `fromFixedBounded`
+
+## 0.1.0
+
+Initial release
