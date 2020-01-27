@@ -40,8 +40,8 @@ import Numeric.Decimal.Internal
 type Decimal64 s = Decimal RoundHalfUp s Int64
 
 
--- | [Round half up](https://en.wikipedia.org/wiki/Rounding#Round_half_up): A most common
--- rounding strategy that we learn at school:
+-- | [Round half up](https://en.wikipedia.org/wiki/Rounding#Round_half_up): A very common
+-- rounding strategy:
 --
 -- >>> :set -XDataKinds
 -- >>> roundDecimal <$> (3.65 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
@@ -59,12 +59,14 @@ data RoundHalfUp
 instance Round RoundHalfUp where
   roundDecimal :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
   roundDecimal (Decimal x)
-    | k == 0               = Decimal x
-    | r < 5 * 10 ^ (k - 1) = Decimal q
-    | otherwise            = Decimal (q + 1)
+    | k == 0                    = Decimal x
+    | r >= 5                    = Decimal (q + 1)
+    | signum r < 0 && abs r > 5 = Decimal (q - 1)
+    | otherwise                 = Decimal q
     where
       k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
-      (q, r) = quotRem x (10 ^ k)
+      s1 = 10 ^ (k - 1)
+      (q, r) = (`quot` s1) <$> quotRem x (s1 * 10)
   {-# INLINABLE roundDecimal #-}
 
 

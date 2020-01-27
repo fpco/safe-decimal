@@ -1,3 +1,8 @@
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -17,6 +22,7 @@ import GHC.TypeLits
 import Numeric.Decimal
 import Numeric.Natural
 import Test.Hspec
+import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 
@@ -169,20 +175,71 @@ specBouned px = do
   specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 0) px
   specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 1) px
   specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 2) px
+  specRounding @1 @0 @a
+  specRounding @1 @1 @a
+  specRounding @2 @0 @a
   let maxLen = length (show (maxBound :: a))
-  when (maxLen >= 3) $
+  when (maxLen >= 3) $ do
     specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 3) px
-  when (maxLen >= 4) $
+    specRounding @2 @1 @a
+    specRounding @3 @0 @a
+  when (maxLen >= 4) $ do
+    specRounding @2 @2 @a
+    specRounding @3 @1 @a
+    specRounding @4 @0 @a
     specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 4) px
-  when (maxLen >= 5) $
+  when (maxLen >= 5) $ do
+    specRounding @3 @2 @a
+    specRounding @4 @1 @a
+    specRounding @5 @0 @a
     specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 5) px
   when (maxLen >= 19) $
     specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 19) px
-  it "rounding" $
-    property $ \(d :: Decimal RoundHalfUp 1 a) ->
-      let r = toRationalDecimal d
-       in (roundDecimal d :: Decimal RoundHalfUp 0 a) ===
-          throwDecimal (fromRationalDecimalBounded (roundHalfUpTo 0 r))
+  -- prop "rounding (Decimal" $
+  --   property $ \(d :: Decimal RoundHalfUp 1 a) ->
+  --     let r = toRationalDecimal d
+  --      in (roundDecimal d :: Decimal RoundHalfUp 0 a) ===
+  --         throwDecimal (fromRationalDecimalBounded (roundHalfUpTo 0 r))
+
+specRounding ::
+     forall s k p.
+     ( KnownNat s
+     , KnownNat k
+     , KnownNat (s + k)
+     , Bounded p
+     , Integral p
+     , Typeable s
+     , Typeable p
+     , Arbitrary p
+     )
+  => Spec
+specRounding = do
+  prop (("Rounding "++) . showsDecimalType @RoundHalfUp @(s + k) @p $ "") $
+    prop_Rounding @RoundHalfUp @s @k @p
+    (roundHalfUpTo (fromIntegral (natVal (Proxy :: Proxy s))))
+
+prop_Rounding ::
+     forall r s k a. (KnownNat s, KnownNat k, KnownNat (s + k), Bounded a, Integral a, Round r)
+  => (Rational -> Rational)
+  -> Decimal r (s + k) a
+  -> Property
+prop_Rounding roundTo d =
+  let r = toRationalDecimal d
+   in (roundDecimal d :: Decimal r s a) ===
+      throwDecimal (fromRationalDecimalBounded (roundTo r))
+
+showsDecimalType ::
+     forall r (s :: Nat) p. (Typeable r, Typeable s, Typeable p)
+  => ShowS
+showsDecimalType = ("(Decimal " ++)
+                   . showsType @r . (' ':)
+                   . showsTypeRep (typeRep (Proxy :: Proxy s))
+                   . (' ':)
+                   . showsType @p
+                   . (')':)
+
+showsType :: forall t . Typeable t => ShowS
+showsType = showsTypeRep (typeRep (Proxy :: Proxy t))
 
 throwDecimal :: Either SomeException (Decimal r s p) -> Decimal r s p
 throwDecimal = either throw id

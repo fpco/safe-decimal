@@ -92,6 +92,14 @@ class Round r where
   -- @since 0.1.0
   roundDecimal :: (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
 
+data PrecisionLoss = PrecisionLoss !Rational !Integer
+  deriving Eq
+
+instance Show PrecisionLoss where
+  show (PrecisionLoss r s) = "PrecisionLoss (" ++ show r ++ ") to " ++ show s ++ " decimal spaces"
+
+instance Exception PrecisionLoss
+
 -- | Get the scale of a `Decimal`. Argument is not evaluated.
 --
 -- >>> import Numeric.Decimal
@@ -667,23 +675,31 @@ toRationalDecimal ::
      (KnownNat s, Round r, Integral p) => Decimal r s p -> Rational
 toRationalDecimal d = toRational (toInteger <$> d)
 
+-- | Convert from `Rational` to a `Decimal` backed by `Integer`. `PrecisionLoss` will be
+-- thrown if conversion cannot be achieved without any loss of data. In case that rounding
+-- is acceptable use `fromRationalDecimalRounded`
+--
+-- @since 0.2.0
 fromRationalDecimal ::
-     forall m r s. (MonadThrow m, KnownNat s, Round r)
+     forall m r s. (MonadThrow m, KnownNat s)
   => Rational
   -> m (Decimal r s Integer)
 fromRationalDecimal rational
   | denominator rational == 0 = throwM DivideByZero
-  | fromIntegral t /= scaledRat = throwM Underflow
+  | fromIntegral t /= scaledRat = throwM (PrecisionLoss rational s)
   | otherwise = pure truncated
   where
     truncated@(Decimal t) = Decimal (truncate scaledRat) :: Decimal r s Integer
     scaledRat = rational * (d % 1)
-    d = 10 ^ natVal (Proxy :: Proxy s)
+    s = natVal (Proxy :: Proxy s)
+    d = 10 ^ s
 {-# INLINABLE fromRationalDecimal #-}
 
-
+-- |
+--
+-- @since 0.2.0
 fromRationalDecimalBounded ::
-     (MonadThrow m, KnownNat s, Round r, Integral p, Bounded p)
+     (MonadThrow m, KnownNat s, Integral p, Bounded p)
   => Rational
   -> m (Decimal r s p)
 fromRationalDecimalBounded r = fromRationalDecimal r >>= fromIntegerDecimalBounded
