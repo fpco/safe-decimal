@@ -195,11 +195,6 @@ specBouned px = do
     specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 5) px
   when (maxLen >= 19) $
     specBoundedDecimal (Proxy :: Proxy RoundHalfUp) (Proxy :: Proxy 19) px
-  -- prop "rounding (Decimal" $
-  --   property $ \(d :: Decimal RoundHalfUp 1 a) ->
-  --     let r = toRationalDecimal d
-  --      in (roundDecimal d :: Decimal RoundHalfUp 0 a) ===
-  --         throwDecimal (fromRationalDecimalBounded (roundHalfUpTo 0 r))
 
 specRounding ::
      forall s k p.
@@ -208,7 +203,6 @@ specRounding ::
      , KnownNat (s + k)
      , Bounded p
      , Integral p
-     , Typeable s
      , Typeable p
      , Arbitrary p
      )
