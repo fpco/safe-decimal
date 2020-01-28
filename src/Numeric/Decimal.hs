@@ -8,8 +8,14 @@
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module Numeric.Decimal
   ( Decimal64
+  -- * Rounding
+  -- ** Round half up
   , RoundHalfUp
-  , RoundFloor
+  -- ** Round down
+  , RoundDown
+  , Floor
+  -- ** Round towards zero
+  , RoundToZero
   , Truncate
   , module Numeric.Decimal.Internal
   -- * Operations
@@ -110,59 +116,64 @@ roundHalfUp (Decimal x)
 -- | [Round down](https://en.wikipedia.org/wiki/Rounding#Rounding_down): Round towards minus infinity:
 --
 -- >>> :set -XDataKinds
--- >>> roundDecimal <$> (3.65 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- >>> roundDecimal <$> (3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
 -- 3.6
--- >>> roundDecimal <$> (3.75 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- >>> roundDecimal <$> (3.75 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
 -- 3.7
--- >>> roundDecimal <$> (3.89 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- >>> roundDecimal <$> (3.89 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
 -- 3.8
--- >>> roundDecimal <$> (-3.65 :: IO (Decimal RoundFloor 2 Int)) :: IO (Decimal RoundFloor 1 Int)
+-- >>> roundDecimal <$> (-3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
 -- -3.7
 --
--- @since 0.1.0
-data RoundFloor
+-- @since 0.2.0
+data RoundDown
 
-instance Round RoundFloor Integer where
-  roundDecimal = roundFloor
-instance Round RoundFloor Int where
-  roundDecimal = roundFloor
+-- | Synonym for round down
+--
+-- @since 0.2.0
+type Floor = RoundDown
+
+instance Round RoundDown Integer where
+  roundDecimal = roundDown
+instance Round RoundDown Int where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Int8 where
-  roundDecimal = roundFloor
+instance Round RoundDown Int8 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Int16 where
-  roundDecimal = roundFloor
+instance Round RoundDown Int16 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Int32 where
-  roundDecimal = roundFloor
+instance Round RoundDown Int32 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Int64 where
-  roundDecimal = roundFloor
+instance Round RoundDown Int64 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Word where
-  roundDecimal = roundFloor
+instance Round RoundDown Word where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Word8 where
-  roundDecimal = roundFloor
+instance Round RoundDown Word8 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Word16 where
-  roundDecimal = roundFloor
+instance Round RoundDown Word16 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Word32 where
-  roundDecimal = roundFloor
+instance Round RoundDown Word32 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
-instance Round RoundFloor Word64 where
-  roundDecimal = roundFloor
+instance Round RoundDown Word64 where
+  roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
 
-roundFloor :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
-roundFloor (Decimal x)
+roundDown :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundDown (Decimal x)
   | x >= 0 || r == 0 = Decimal q
   | otherwise = Decimal (q - 1)
   where
     k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
     (q, r) = quotRem x (10 ^ k)
-{-# INLINABLE roundFloor #-}
+{-# INLINABLE roundDown #-}
 
 -- | [Round towards zero](https://en.wikipedia.org/wiki/Rounding#Round_towards_zero): drop
 -- the fractional digits, regardless of the sign.
@@ -177,47 +188,53 @@ roundFloor (Decimal x)
 -- >>> roundDecimal <$> (-3.65 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
 -- -3.6
 --
+-- @since 0.2.0
+data RoundToZero
+
+
+-- | Synonym for `RoundToZero`
+--
 -- @since 0.1.0
-data Truncate
+type Truncate = RoundToZero
 
-instance Round Truncate Integer where
-  roundDecimal = roundTruncate
-instance Round Truncate Int where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Integer where
+  roundDecimal = roundRoundToZero
+instance Round RoundToZero Int where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Int8 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Int8 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Int16 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Int16 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Int32 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Int32 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Int64 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Int64 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Word where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Word where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Word8 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Word8 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Word16 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Word16 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Word32 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Word32 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
-instance Round Truncate Word64 where
-  roundDecimal = roundTruncate
+instance Round RoundToZero Word64 where
+  roundDecimal = roundRoundToZero
   {-# INLINABLE roundDecimal #-}
 
-roundTruncate :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
-roundTruncate (Decimal x) = Decimal (quot x (10 ^ k))
+roundRoundToZero :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundRoundToZero (Decimal x) = Decimal (quot x (10 ^ k))
   where
     k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
-{-# INLINABLE roundTruncate #-}
+{-# INLINABLE roundRoundToZero #-}
 
 -- | /O(1)/ - Conversion of a list.
 --
@@ -233,6 +250,7 @@ roundTruncate (Decimal x) = Decimal (quot x (10 ^ k))
 -- >>> mapM fromIntegral [1, 20, 300 :: Int] :: Either SomeException [Decimal RoundHalfUp 2 Int]
 -- Right [1.00,20.00,300.00]
 --
+-- @since 0.1.0
 decimalList :: Integral p => [p] -> [Decimal r s p]
 decimalList = coerce
 
@@ -315,9 +333,9 @@ type instance FixedScale E12 = 12
 
 -- | Convert a `Decimal` to a `Fixed` with the exactly same precision.
 --
--- >>> toFixed (3 :: Decimal RoundFloor 2 Integer) :: Fixed E2
+-- >>> toFixed (3 :: Decimal RoundDown 2 Integer) :: Fixed E2
 -- 3.00
--- >>> toFixed <$> (3.65 :: IO (Decimal RoundFloor 2 Int)) :: IO (Fixed E2)
+-- >>> toFixed <$> (3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Fixed E2)
 -- 3.65
 -- >>> toFixed $ fromFixed (123.45 :: Fixed E2) :: Fixed E2
 -- 123.45
@@ -326,7 +344,7 @@ type instance FixedScale E12 = 12
 toFixed :: (s ~ FixedScale e, Integral p) => Decimal r s p -> Fixed e
 toFixed = MkFixed . toInteger . unwrapDecimal
 
--- | Convert a `Fixed` to a decimal with the exactly same precision
+-- | Convert a `Fixed` to a `Decimal` with the exactly same precision
 --
 -- >>> fromFixed (123.45 :: Fixed E2)
 -- 123.45
@@ -338,11 +356,11 @@ fromFixed = coerce
 -- | Convert a `Fixed` to a decimal backed by a bounded integral with the exactly same
 -- precision
 --
--- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal Truncate 3 Int)
+-- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int)
 -- 123.458
--- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal Truncate 3 Int8)
+-- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int8)
 -- *** Exception: arithmetic overflow
--- >>> fromFixedBounded (-123.458 :: Fixed E3) :: IO (Decimal Truncate 3 Word)
+-- >>> fromFixedBounded (-123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Word)
 -- *** Exception: arithmetic underflow
 --
 -- @since 0.2.0

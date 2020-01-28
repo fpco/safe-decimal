@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
@@ -21,6 +21,7 @@ module Numeric.Decimal.Internal
   , fromNumBounded
   , scaleUp
   , scaleUpBounded
+  , castRounding
   , parseDecimalBounded
   -- * Algebra
   , plusDecimal
@@ -61,6 +62,7 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.Catch
 import Data.Char
+import Data.Coerce
 import Data.Foldable as F
 import Data.Int
 import Data.List
@@ -70,7 +72,6 @@ import Data.Word
 import GHC.Generics (Generic)
 import GHC.TypeLits
 import Text.Printf
-
 
 -- | Decimal number with custom precision (@p@) and type level scaling (@s@) parameter (i.e. number
 -- of digits after the decimal point). As well as the rounding (@r@) strategy to use.
@@ -93,6 +94,13 @@ class Integral p => Round r p where
   --
   -- @since 0.1.0
   roundDecimal :: KnownNat k => Decimal r (n + k) p -> Decimal r n p
+
+-- | Change the rounding strategy of a `Decimal`
+--
+-- @since 0.2.0
+castRounding :: Round r' p => Decimal r s p -> Decimal r' s p
+castRounding = coerce
+
 
 data PrecisionLoss = PrecisionLoss !Rational !Integer
   deriving Eq
@@ -125,7 +133,7 @@ getScale _ = fromIntegral (natVal (Proxy :: Proxy s))
 -- >>> scaleUp d2 :: Decimal RoundHalfUp 50 Integer
 -- 1.65000000000000000000000000000000000000000000000000
 --
--- @since 0.1.1
+-- @since 0.2.0
 scaleUp ::
      forall k r n. KnownNat k
   => Decimal r n Integer
@@ -660,6 +668,17 @@ timesDecimal (Decimal x) (Decimal y) = Decimal (x * y)
 {-# INLINABLE timesDecimal #-}
 
 
+-- | Multiply two decimal numbers backed by `Integer`, while rounding the result according
+-- to the rounding strategy.
+timesDecimalRoundedInteger ::
+     (KnownNat s, Round r Integer)
+  => Decimal r s Integer
+  -> Decimal r s Integer
+  -> Decimal r s Integer
+timesDecimalRoundedInteger dx dy = roundDecimal $ timesDecimal dx dy
+{-# INLINABLE timesDecimalRoundedInteger #-}
+
+
 -- | Multiply two decimal numbers, while rounding the result according to the rounding strategy.
 timesDecimalRounded ::
      (MonadThrow m, KnownNat s, Round r Integer, Integral p, Bounded p)
@@ -667,7 +686,7 @@ timesDecimalRounded ::
   -> Decimal r s p
   -> m (Decimal r s p)
 timesDecimalRounded dx dy =
-  fromIntegerDecimalBounded $ roundDecimal $ timesDecimal (fmap toInteger dx) (fmap toInteger dy)
+  fromIntegerDecimalBounded $ timesDecimalRoundedInteger (fmap toInteger dx) (fmap toInteger dy)
 {-# INLINABLE timesDecimalRounded #-}
 
 

@@ -156,8 +156,8 @@ specBouned ::
      , Bounded a
      , NFData a
      , Round RoundHalfUp a
-     , Round RoundFloor a
-     , Round Truncate a
+     , Round RoundDown a
+     , Round RoundToZero a
      )
   => Proxy a
   -> Spec
@@ -215,19 +215,19 @@ specRounding ::
      , Typeable p
      , Arbitrary p
      , Round RoundHalfUp p
-     , Round RoundFloor p
-     , Round Truncate p
+     , Round RoundDown p
+     , Round RoundToZero p
      )
   => Spec
 specRounding = do
   prop (propNamePrefix . showsDecimalType @RoundHalfUp @(s + k) @p $ "") $
     prop_Rounding @RoundHalfUp @s @k @p
     (roundHalfUpTo (fromIntegral (natVal (Proxy :: Proxy s))))
-  prop (propNamePrefix . showsDecimalType @Truncate @(s + k) @p $ "") $
-    prop_Rounding @Truncate @s @k @p
-    (roundTruncateTo (fromIntegral (natVal (Proxy :: Proxy s))))
-  prop (propNamePrefix . showsDecimalType @RoundFloor @(s + k) @p $ "") $
-    prop_Rounding @RoundFloor @s @k @p
+  prop (propNamePrefix . showsDecimalType @RoundToZero @(s + k) @p $ "") $
+    prop_Rounding @RoundToZero @s @k @p
+    (roundRoundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundDown @(s + k) @p $ "") $
+    prop_Rounding @RoundDown @s @k @p
     (roundFloorTo (fromIntegral (natVal (Proxy :: Proxy s))))
   where
     propNamePrefix =
@@ -379,8 +379,8 @@ roundFloorTo to rational = (floor (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
-roundTruncateTo :: Natural -> Rational -> Rational
-roundTruncateTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
+roundRoundToZeroTo :: Natural -> Rational -> Rational
+roundRoundToZeroTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
