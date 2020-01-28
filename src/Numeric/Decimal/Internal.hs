@@ -43,8 +43,6 @@ module Numeric.Decimal.Internal
   , fromRationalDecimal
   , fromRationalDecimalBounded
   , fromRationalDecimalRounded
-  , liftDecimal
-  , liftDecimal2
   , bindM2Decimal
   , bindM2
   -- * Bounded
@@ -225,14 +223,6 @@ fromIntegralDecimalBounded ::
 fromIntegralDecimalBounded = fromIntegerDecimalBounded . fromIntegerDecimal . toInteger
 {-# INLINABLE fromIntegralDecimalBounded #-}
 
-
-liftDecimal :: (p1 -> p2) -> Decimal r s p1 -> Decimal r s p2
-liftDecimal f (Decimal x) = Decimal (f x)
-{-# INLINABLE liftDecimal #-}
-
-liftDecimal2 :: (p1 -> p2 -> p3) -> Decimal r s p1 -> Decimal r s p2 -> Decimal r s p3
-liftDecimal2 f (Decimal x) (Decimal y) = Decimal (f x y)
-{-# INLINABLE liftDecimal2 #-}
 
 bindM2Decimal ::
      Monad m

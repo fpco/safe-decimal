@@ -9,7 +9,6 @@
 |  [`safe-decimal`](https://github.com/fpco/safe-decimal/tree/master/safe-decimal)|                                       [![Hackage](https://img.shields.io/hackage/v/safe-decimal.svg)](https://hackage.haskell.org/package/safe-decimal)|                                                                                                        [![Nightly](https://www.stackage.org/package/safe-decimal/badge/nightly)](https://www.stackage.org/nightly/package/safe-decimal)|                                                                                         [![Nightly](https://www.stackage.org/package/safe-decimal/badge/lts)](https://www.stackage.org/lts/package/safe-decimal)|
 
 
-An implementation of a decimal point data type, that is backed by any custom integral type. It is
-safe, because all runtime exceptions and integer overflows are prevented on arithmetic operations,
-namely things like integer overflows, underflows, division by zero etc. are checked for during the
-runtime.
+An implementation of a decimal point data type, that is backed by any custom integral
+type. It is safe, because things like integer overflows, underflows, division by zero
+etc. are checked for during the runtime and are prevented in pure code.
