@@ -282,7 +282,7 @@ productDecimal ::
      (MonadThrow m, Foldable f, KnownNat s, Round r Integer, Integral p, Bounded p)
   => f (Decimal r s p)
   -> m (Decimal r s p)
-productDecimal ds = fromNumBounded 1 >>= (\acc -> foldM timesDecimalRounded acc ds)
+productDecimal ds = fromIntegralDecimalBounded 1 >>= (\acc -> foldM timesDecimalRounded acc ds)
 {-# INLINABLE productDecimal #-}
 
 
@@ -294,7 +294,7 @@ productDecimal ds = fromNumBounded 1 >>= (\acc -> foldM timesDecimalRounded acc 
 --
 -- @since 0.1.0
 toScientific :: (Integral p, KnownNat s) => Decimal r s p -> Scientific
-toScientific dec = scientific (toInteger (unwrapDecimal dec)) (negate (getScale dec))
+toScientific dec = scientific (toInteger (unwrapDecimal dec)) (fromInteger (negate (getScale dec)))
 
 -- | Convert Scientific to Decimal without loss of precision. Will return `Left` `Underflow` if
 -- `Scientific` has too many decimal places, more than `Decimal` scaling is capable to handle.
@@ -333,8 +333,6 @@ type instance FixedScale E12 = 12
 
 -- | Convert a `Decimal` to a `Fixed` with the exactly same precision.
 --
--- >>> toFixed (3 :: Decimal RoundDown 2 Integer) :: Fixed E2
--- 3.00
 -- >>> toFixed <$> (3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Fixed E2)
 -- 3.65
 -- >>> toFixed $ fromFixed (123.45 :: Fixed E2) :: Fixed E2

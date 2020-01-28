@@ -17,20 +17,25 @@ module Numeric.Decimal.Internal
   , unwrapDecimal
   , splitDecimal
   , getScale
-  , fromNum
-  , fromNumBounded
+  , fromIntegerDecimal
+  , fromIntegralDecimalBounded
   , scaleUp
   , scaleUpBounded
   , castRounding
   , parseDecimalBounded
   -- * Algebra
+  , decimalNumerator
+  , decimalDenominator
   , plusDecimal
   , minusDecimal
   , timesDecimal
   , signumDecimal
+  , signumDecimalBounded
   , timesDecimalBounded
   , timesDecimalRounded
+  , timesDecimalWithoutLoss
   , divideDecimal
+  , divideDecimalWithoutLoss
   , quotRemBounded
   , quotRemDecimalBounded
   , fromIntegerDecimalBounded
@@ -113,15 +118,15 @@ instance Exception PrecisionLoss
 -- | Get the scale of a `Decimal`. Argument is not evaluated.
 --
 -- >>> import Numeric.Decimal
--- >>> d = 36 :: Decimal RoundHalfUp 5 Integer
+-- >>> d <- 36 :: IO (Decimal RoundHalfUp 5 Int)
 -- >>> d
 -- 36.00000
 -- >>> getScale d
 -- 5
 --
 -- @since 0.1.0
-getScale :: forall r s p . KnownNat s => Decimal r s p -> Int
-getScale _ = fromIntegral (natVal (Proxy :: Proxy s))
+getScale :: forall r s p . KnownNat s => Decimal r s p -> Integer
+getScale _ = natVal (Proxy :: Proxy s)
 
 
 -- | Increase the precision of a `Decimal`, use `roundDecimal` if inverse is desired.
@@ -196,29 +201,29 @@ unwrapDecimal (Decimal p) = p
 -- | Convert an `Integer` while performing the necessary scaling
 --
 -- >>> import Numeric.Decimal
--- >>> fromNum 1234 :: Decimal RoundHalfUp 4 Integer
+-- >>> fromIntegerDecimal 1234 :: Decimal RoundHalfUp 4 Integer
 -- 1234.0000
 --
--- @since 0.1.0
-fromNum :: forall r s . KnownNat s => Integer -> Decimal r s Integer
-fromNum x = Decimal (x * (10 ^ s))
+-- @since 0.2.0
+fromIntegerDecimal :: forall r s . KnownNat s => Integer -> Decimal r s Integer
+fromIntegerDecimal x = Decimal (x * (10 ^ s))
   where
     s = natVal (Proxy :: Proxy s)
-{-# INLINABLE fromNum #-}
+{-# INLINABLE fromIntegerDecimal #-}
 
 -- | Convert a bounded integeral into a decimal, while performing the necessary scaling
 --
 -- >>> import Numeric.Decimal
--- >>> fromNumBounded 1234 :: IO (Decimal RoundHalfUp 4 Int)
+-- >>> fromIntegralDecimalBounded 1234 :: IO (Decimal RoundHalfUp 4 Int)
 -- 1234.0000
--- >>> fromNumBounded 1234 :: IO (Decimal RoundHalfUp 4 Int16)
+-- >>> fromIntegralDecimalBounded 1234 :: IO (Decimal RoundHalfUp 4 Int16)
 -- *** Exception: arithmetic overflow
 --
--- @since 0.1.0
-fromNumBounded ::
+-- @since 0.2.0
+fromIntegralDecimalBounded ::
      (Integral p, Bounded p, KnownNat s, MonadThrow m) => p -> m (Decimal r s p)
-fromNumBounded = fromIntegerDecimalBounded . fromNum . toInteger
-{-# INLINABLE fromNumBounded #-}
+fromIntegralDecimalBounded = fromIntegerDecimalBounded . fromIntegerDecimal . toInteger
+{-# INLINABLE fromIntegralDecimalBounded #-}
 
 
 liftDecimal :: (p1 -> p2) -> Decimal r s p1 -> Decimal r s p2
@@ -258,42 +263,24 @@ instance Bounded p => Bounded (Decimal r s p) where
 -- Integer instances --------------
 -----------------------------------
 
-instance (Round r Integer, KnownNat s) => Num (Decimal r s Integer) where
-  (+) = liftA2 (+)
-  {-# INLINABLE (+) #-}
-  (-) = liftDecimal2 (-)
-  {-# INLINABLE (-) #-}
-  (*) = liftDecimal2 (*)
-  {-# INLINABLE (*) #-}
-  signum = signumDecimal
-  {-# INLINABLE signum #-}
-  abs = fmap abs
-  {-# INLINABLE abs #-}
-  fromInteger = fromNum
-  {-# INLINABLE fromInteger #-}
-
-instance (Round r Integer, KnownNat s) => Real (Decimal r s Integer) where
-  toRational = toRationalDecimalInteger
-  {-# INLINABLE toRational #-}
-
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Integer)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Integer)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational = fromRationalDecimal
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Integer)) where
-  (+) = liftA2 (+)
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Integer)) where
+  (+) = liftA2 (liftA2 (+))
   {-# INLINABLE (+) #-}
-  (-) = liftA2 (-)
+  (-) = liftA2 (liftA2 (-))
   {-# INLINABLE (-) #-}
-  (*) x y = roundDecimal <$> liftA2 timesDecimal x y
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = fmap signumDecimal
   {-# INLINABLE signum #-}
   abs = fmap (fmap abs)
   {-# INLINABLE abs #-}
-  fromInteger = pure . fromNum
+  fromInteger = pure . fromIntegerDecimal
   {-# INLINABLE fromInteger #-}
 
 
@@ -302,12 +289,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Inte
 -----------------------------------
 
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -316,12 +303,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int)
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int8)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int8)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -330,12 +317,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int8
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int16)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int16)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -344,12 +331,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int1
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int32)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int32)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -358,12 +345,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int3
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int64)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int64)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -372,12 +359,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Int6
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Word)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -386,12 +373,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word8)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Word8)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -400,12 +387,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word16)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Word16)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -414,12 +401,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word32)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Word32)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -428,12 +415,12 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word64)) where
+instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Word64)) where
   (+) = bindM2 plusDecimal
   {-# INLINABLE (+) #-}
   (-) = bindM2 minusDecimal
   {-# INLINABLE (-) #-}
-  (*) = bindM2 timesDecimalRounded
+  (*) = bindM2 timesDecimalWithoutLoss
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
@@ -442,62 +429,62 @@ instance (MonadThrow m, Round r Integer, KnownNat s) => Num (m (Decimal r s Word
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Int)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Int)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Int8)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Int8)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Int16)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Int16)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Int32)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Int32)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Int64)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Int64)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Word)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Word)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Word8)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Word8)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Word16)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Word16)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Word32)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Word32)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
   {-# INLINABLE fromRational #-}
 
-instance (MonadThrow m, Round r Integer, KnownNat s) => Fractional (m (Decimal r s Word64)) where
+instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Word64)) where
   (/) = bindM2 divideDecimal
   {-# INLINABLE (/) #-}
   fromRational r = fromRationalDecimal r >>= fromIntegerDecimalBounded
@@ -690,6 +677,56 @@ timesDecimalRounded dx dy =
 {-# INLINABLE timesDecimalRounded #-}
 
 
+
+-- | Multiply two decimal numbers that have the same scale, while throwing `PrecisionLoss`
+-- whenever multiplication cannot be done without rounding.
+--
+-- @since 0.2.0
+timesDecimalWithoutLoss ::
+     forall r s p m. (Integral p, KnownNat s, MonadThrow m)
+  => Decimal r s p
+  -> Decimal r s p
+  -> m (Decimal r s p)
+timesDecimalWithoutLoss d1 (Decimal i2)
+  | q /= toRational i =
+    throwM $ PrecisionLoss (q * (1 % decimalDenominator d1)) $ getScale d1
+  | otherwise = pure $ Decimal i
+  where
+    q = toRationalDecimal d1 * (toInteger i2 % 1)
+    i = truncate q
+
+-- | Divide two decimal numbers that have the same scale, while throwing `PrecisionLoss`
+-- whenever division cannot be done without rounding.
+--
+-- @since 0.2.0
+divideDecimalWithoutLoss ::
+     forall r s p m. (Integral p, KnownNat s, MonadThrow m)
+  => Decimal r s p
+  -> Decimal r s p
+  -> m (Decimal r s p)
+divideDecimalWithoutLoss d1 (Decimal i2)
+  | i2 == 0 = throwM DivideByZero
+  | q /= toRational i = throwM $ PrecisionLoss (q * (1 % decimalDenominator d1)) $ getScale d1
+  | otherwise = pure $ Decimal i
+  where
+    q = (decimalNumerator d1 * decimalDenominator d1) % toInteger i2
+    i = truncate q
+
+
+-- | Get the numerator. Same as `toInteger . unwrapDecimal`
+--
+-- @since 0.2.0
+decimalNumerator :: Integral p => Decimal r s p -> Integer
+decimalNumerator (Decimal i) = toInteger i
+
+-- | Get the decimal denominator. Always will be a multiple of @10@. Does not evaluate the
+-- argument.
+--
+-- @since 0.2.0
+decimalDenominator :: KnownNat s => Decimal r s p -> Integer
+decimalDenominator d = 10 ^ getScale d
+
+
 toRationalDecimalInteger :: forall r s . KnownNat s => Decimal r s Integer -> Rational
 toRationalDecimalInteger (Decimal p) = p % (10 ^ natVal (Proxy :: Proxy s))
 {-# INLINABLE toRationalDecimalInteger #-}
@@ -749,7 +786,7 @@ fromRationalDecimalRounded rational
 
 -- | Compute signum of a decimal, always one of 1, 0 or -1
 signumDecimal :: KnownNat s => Decimal r s Integer -> Decimal r s Integer
-signumDecimal (Decimal d) = fromNum (signum d)
+signumDecimal (Decimal d) = fromIntegerDecimal (signum d)
 {-# INLINABLE signumDecimal #-}
 
 -- | Compute signum of a decimal, always one of 1, 0 or -1
@@ -773,7 +810,7 @@ instance (Integral p, KnownNat s) => Show (Decimal r s p) where
     | otherwise = formatted
     where
       formatted = printf fmt q (abs r)
-      s = getScale d
+      s = fromInteger $ getScale d
       fmt = "%d.%0" ++ show s ++ "u"
       (q, r) = quotRem (toInteger a) (10 ^ s)
 
