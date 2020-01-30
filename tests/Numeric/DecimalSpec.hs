@@ -262,7 +262,7 @@ prop_Rounding ::
 prop_Rounding roundTo d =
   let r = toRationalDecimal d
    in fmap toInteger (roundDecimal d :: Decimal r s a) ===
-      throwDecimal (fromRationalDecimal (roundTo r))
+      throwDecimal (fromRationalDecimalWithoutLoss (roundTo r))
 
 showsDecimalType ::
      forall r (s :: Nat) p. (Typeable r, Typeable s, Typeable p)

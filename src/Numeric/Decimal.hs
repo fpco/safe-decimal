@@ -22,8 +22,8 @@ module Numeric.Decimal
   , module Numeric.Decimal.Internal
   -- * Operations
   , decimalList
-  , sumDecimal
-  , productDecimal
+  , sumDecimalBounded
+  , productDecimalBoundedWithRounding
   -- * Conversion
   -- ** Fixed
   , FixedScale
@@ -261,33 +261,37 @@ decimalList = coerce
 -- | Sum a list of decimal numbers
 --
 -- >>> :set -XDataKinds
--- >>> mapM fromRational [1.1, 20.02, 300.003] >>= sumDecimal :: IO (Decimal RoundHalfUp 3 Int)
+-- >>> mapM fromRational [1.1, 20.02, 300.003] >>= sumDecimalBounded :: IO (Decimal RoundHalfUp 3 Int)
 -- 321.123
 --
--- @since 0.1.0
-sumDecimal ::
+-- @since 0.2.0
+sumDecimalBounded ::
      (MonadThrow m, Foldable f, Eq p, Ord p, Num p, Bounded p)
   => f (Decimal r s p)
   -> m (Decimal r s p)
-sumDecimal = foldM plusDecimal (Decimal 0)
-{-# INLINABLE sumDecimal #-}
+sumDecimalBounded = foldM plusDecimalBounded (Decimal 0)
+{-# INLINABLE sumDecimalBounded #-}
 
 -- | Multiply all decimal numbers in the list while doing rounding.
 --
 -- >>> :set -XDataKinds
 -- >>> product [1.1, 20.02, 300.003] :: Double
 -- 6606.666066000001
--- >>> mapM fromRational [1.1, 20.02, 300.003] >>= productDecimal :: IO (Decimal RoundHalfUp 4 Int)
+-- >>> xs <- mapM fromRational [1.1, 20.02, 300.003] :: IO [Decimal RoundHalfUp 4 Int]
+-- >>> xs
+-- [1.1000,20.0200,300.0030]
+-- >>> productDecimalBoundedWithRounding xs
 -- 6606.6661
 --
--- @since 0.1.0
-productDecimal ::
+-- @since 0.2.0
+productDecimalBoundedWithRounding ::
      (MonadThrow m, Foldable f, KnownNat s, Round r Integer, Integral p, Bounded p)
   => f (Decimal r s p)
   -> m (Decimal r s p)
-productDecimal ds = fromIntegralDecimalBounded 1 >>= (\acc -> foldM timesDecimalRounded acc ds)
-{-# INLINABLE productDecimal #-}
-
+productDecimalBoundedWithRounding ds =
+  fromIntegralDecimalBounded 1 >>=
+  (\acc -> foldM timesDecimalBoundedWithRounding acc ds)
+{-# INLINABLE productDecimalBoundedWithRounding #-}
 
 
 ---- Scientific
