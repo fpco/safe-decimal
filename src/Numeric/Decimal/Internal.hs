@@ -31,14 +31,18 @@ module Numeric.Decimal.Internal
   , timesDecimal
   , signumDecimal
   , signumDecimalBounded
+  , absDecimalBounded
   , timesDecimalBounded
   , timesDecimalRounded
+  , timesDecimalRoundedInteger
   , timesDecimalWithoutLoss
   , divideDecimal
+  , divideDecimalRounded
   , divideDecimalWithoutLoss
   , quotRemBounded
   , quotRemDecimalBounded
   , fromIntegerDecimalBounded
+  , fromIntegerDecimalBoundedIntegral
   , toRationalDecimal
   , fromRationalDecimal
   , fromRationalDecimalBounded
@@ -49,6 +53,7 @@ module Numeric.Decimal.Internal
   , plusBounded
   , minusBounded
   , timesBounded
+  , absBounded
   , fromIntegerBounded
   , fromIntegerScaleBounded
   , divBounded
@@ -101,7 +106,7 @@ class Integral p => Round r p where
 -- | Change the rounding strategy of a `Decimal`
 --
 -- @since 0.2.0
-castRounding :: Round r' p => Decimal r s p -> Decimal r' s p
+castRounding :: Decimal r s p -> Decimal r' s p
 castRounding = coerce
 
 
@@ -288,7 +293,7 @@ instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int)) where
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
-  abs = fmap (fmap abs)
+  abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
@@ -302,7 +307,7 @@ instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int8)) where
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
-  abs = fmap (fmap abs)
+  abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
@@ -316,7 +321,7 @@ instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int16)) where
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
-  abs = fmap (fmap abs)
+  abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
@@ -330,7 +335,7 @@ instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int32)) where
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
-  abs = fmap (fmap abs)
+  abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
@@ -344,7 +349,7 @@ instance (MonadThrow m, KnownNat s) => Num (m (Decimal r s Int64)) where
   {-# INLINABLE (*) #-}
   signum = (>>= signumDecimalBounded)
   {-# INLINABLE signum #-}
-  abs = fmap (fmap abs)
+  abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
   fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
   {-# INLINABLE fromInteger #-}
@@ -481,7 +486,7 @@ instance (MonadThrow m, KnownNat s) => Fractional (m (Decimal r s Word64)) where
   {-# INLINABLE fromRational #-}
 
 divideDecimal ::
-     (MonadThrow m, Fractional (m (Decimal r s p)), Integral p, Integral p)
+     (MonadThrow m, Fractional (m (Decimal r s p)), Integral p)
   => Decimal r s p
   -> Decimal r s p
   -> m (Decimal r s p)
@@ -489,6 +494,16 @@ divideDecimal (Decimal x) (Decimal y)
   | y == 0 = throwM DivideByZero
   | otherwise = fromRational (toInteger x % toInteger y)
 {-# INLINABLE divideDecimal #-}
+
+divideDecimalRounded ::
+     (MonadThrow m, KnownNat s, Round r Integer, Bounded p, Integral p)
+  => Decimal r s p
+  -> Decimal r s p
+  -> m (Decimal r s p)
+divideDecimalRounded (Decimal x) (Decimal y)
+  | y == 0 = throwM DivideByZero
+  | otherwise = fromRationalDecimalRounded (toInteger x % toInteger y)
+{-# INLINABLE divideDecimalRounded #-}
 
 
 -----------------------------------
@@ -515,6 +530,15 @@ minusBounded x y
   | otherwise = pure (x - y)
   where sigY = signum y
 {-# INLINABLE minusBounded #-}
+
+absBounded :: (MonadThrow m, Integral p, Bounded p) => p -> m p
+absBounded d
+  | absd < 0 = throwM Overflow
+  | otherwise = pure absd
+  where
+    absd = abs d
+{-# INLINABLE absBounded #-}
+
 
 -- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
 divBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
@@ -599,6 +623,14 @@ fromIntegerScaleBounded ps x
   where s = natVal ps
         xs = x * (10 ^ s)
 {-# INLINABLE fromIntegerScaleBounded #-}
+
+
+fromIntegerDecimalBoundedIntegral ::
+     forall m r s p. (MonadThrow m, Integral p, Bounded p, KnownNat s)
+  => Integer
+  -> m (Decimal r s p)
+fromIntegerDecimalBoundedIntegral x = Decimal <$> fromIntegerScaleBounded (Proxy :: Proxy s) x
+{-# INLINABLE fromIntegerDecimalBoundedIntegral #-}
 
 
 fromIntegerDecimalBounded ::
@@ -786,6 +818,26 @@ signumDecimalBounded ::
   -> m (Decimal r s p)
 signumDecimalBounded d = fromIntegerDecimalBounded $ signumDecimal (toInteger <$> d)
 {-# INLINABLE signumDecimalBounded #-}
+
+-- | Compute absolute value of a bounded decimal. Protects against overflows for negative
+-- `minBound`.
+--
+-- >>> abs (minBound :: Int8)
+-- -128
+-- >>> import Numeric.Decimal
+-- >>> d <- fromRational (-1.28) :: IO (Decimal RoundHalfUp 2 Int8)
+-- >>> d
+-- -1.28
+-- >>> absDecimalBounded d :: Either SomeException (Decimal RoundHalfUp 2 Int8)
+-- Left arithmetic overflow
+--
+-- @since 0.2.0
+absDecimalBounded ::
+     (KnownNat s, MonadThrow m, Integral p, Bounded p)
+  => Decimal r s p
+  -> m (Decimal r s p)
+absDecimalBounded = fmap Decimal . absBounded . coerce
+{-# INLINABLE absDecimalBounded #-}
 
 
 -----------------------------------

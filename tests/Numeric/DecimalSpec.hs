@@ -43,6 +43,20 @@ instance (Arbitrary p) => Arbitrary (Decimal r s p) where
 showType :: forall t . Typeable t => Proxy t -> String
 showType _ = showsTypeRep (typeRep (Proxy :: Proxy t)) ""
 
+prop_absBounded ::
+     (Show a, Integral a, Bounded a)
+  => [ArithException] -- ^ Exceptions to expect
+  -> Extremum a
+  -> Property
+prop_absBounded excs (Extremum x) =
+  classify (not withinBounds) "Outside of Bounds" $
+  if withinBounds
+    then Right res === resBounded
+    else disjoin (fmap ((resBounded ===) . Left) excs)
+  where
+    res = abs x
+    withinBounds = toInteger res == toInteger (abs x)
+    resBounded = toArithException $ absBounded x
 
 prop_plusBounded ::
      (Show a, Integral a, Bounded a)
@@ -176,6 +190,8 @@ specBouned px = do
       property (prop_minusBounded excs :: Extremum a -> Extremum a -> Property)
     it "timesBounded" $
       property (prop_timesBounded excs :: Extremum a -> Extremum a -> Property)
+    it "absBounded" $
+      property (prop_absBounded [Overflow] :: Extremum a -> Property)
     it "fromIntegerBounded" $
       property (prop_fromIntegerBounded excs :: Int -> Extremum a -> Property)
     it "divBounded" $
