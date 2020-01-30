@@ -23,7 +23,7 @@ module Numeric.Decimal.Internal
   , scaleUpBounded
   , castRounding
   , parseDecimalBounded
-  -- * Algebra
+  -- * Arithmetic
   , decimalNumerator
   , decimalDenominator
   , plusDecimal
@@ -49,15 +49,6 @@ module Numeric.Decimal.Internal
   , fromRationalDecimalRounded
   , bindM2Decimal
   , bindM2
-  -- * Bounded
-  , plusBounded
-  , minusBounded
-  , timesBounded
-  , absBounded
-  , fromIntegerBounded
-  , fromIntegerScaleBounded
-  , divBounded
-  , quotBounded
   -- ** Exceptions
   , MonadThrow(..)
   , ArithException(..)
@@ -77,6 +68,7 @@ import Data.List
 import Data.Proxy
 import Data.Ratio
 import Data.Word
+import Numeric.Decimal.BoundedArithmetic
 import GHC.Generics (Generic)
 import GHC.TypeLits
 import Text.Printf
@@ -506,71 +498,6 @@ divideDecimalRounded (Decimal x) (Decimal y)
 {-# INLINABLE divideDecimalRounded #-}
 
 
------------------------------------
--- Helper functions ---------------
------------------------------------
-
--- | Add two bounded numbers while checking for `Overflow`/`Underflow`
-plusBounded :: (MonadThrow m, Eq a, Ord a, Num a, Bounded a) => a -> a -> m a
-plusBounded x y
-  | sameSig && sigX ==  1 && x > maxBound - y = throwM Overflow
-  | sameSig && sigX == -1 && x < minBound - y = throwM Underflow
-  | otherwise = pure (x + y)
-  where
-    sigX = signum x
-    sigY = signum y
-    sameSig = sigX == sigY
-{-# INLINABLE plusBounded #-}
-
--- | Subtract two bounded numbers while checking for `Overflow`/`Underflow`
-minusBounded :: (MonadThrow m, Eq a, Ord a, Num a, Bounded a) => a -> a -> m a
-minusBounded x y
-  | sigY == -1 && x > maxBound + y = throwM Overflow
-  | sigY ==  1 && x < minBound + y = throwM Underflow
-  | otherwise = pure (x - y)
-  where sigY = signum y
-{-# INLINABLE minusBounded #-}
-
-absBounded :: (MonadThrow m, Integral p, Bounded p) => p -> m p
-absBounded d
-  | absd < 0 = throwM Overflow
-  | otherwise = pure absd
-  where
-    absd = abs d
-{-# INLINABLE absBounded #-}
-
-
--- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
-divBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
-divBounded x y
-  | y == 0 = throwM DivideByZero
-  | signum y == -1 && y == -1 && x == minBound = throwM Overflow
-    ------------------- ^ Here we deal with special case overflow when (minBound * (-1))
-  | otherwise = pure (x `div` y)
-{-# INLINABLE divBounded #-}
-
-
--- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
-quotBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
-quotBounded x y
-  | y == 0 = throwM DivideByZero
-  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
-    ------------------- ^ Here we deal with special case overflow when (minBound * (-1))
-  | otherwise = pure (x `quot` y)
-  where
-    sigY = signum y -- Guard against wraparound in case of unsigned Word
-{-# INLINABLE quotBounded #-}
-
--- | Divide two decimal numbers while checking for `Overflow` and `DivideByZero`
-quotRemBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m (a, a)
-quotRemBounded x y
-  | y == 0 = throwM DivideByZero
-  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
-  | otherwise = pure (x `quotRem` y)
-  where
-    sigY = signum y
-{-# INLINABLE quotRemBounded #-}
-
 quotRemDecimalBounded ::
      forall m r s p. (MonadThrow m, Integral p, Bounded p)
   => Decimal r s p
@@ -584,45 +511,27 @@ quotRemDecimalBounded (Decimal raw) i
       pure (Decimal q, Decimal r)
 {-# INLINABLE quotRemDecimalBounded #-}
 
-
--- | Multiply two decimal numbers while checking for `Overflow`
-timesBounded :: (MonadThrow m, Integral a, Bounded a) => a -> a -> m a
-timesBounded x y
-  | sigY == -1 && y == -1 && x == minBound = throwM Overflow
-  | signum x == -1 && x == -1 && y == minBound = throwM Overflow
-  | sigY ==  1 && (minBoundQuotY > x || x > maxBoundQuotY) = eitherOverUnder
-  | sigY == -1 && y /= -1 && (minBoundQuotY < x || x < maxBoundQuotY) = eitherOverUnder
-  | otherwise = pure (x * y)
-  where
-    sigY = signum y
-    maxBoundQuotY = maxBound `quot` y
-    minBoundQuotY = minBound `quot` y
-    eitherOverUnder = throwM $ if sigY == signum x then Overflow else Underflow
-{-# INLINABLE timesBounded #-}
-
-
-fromIntegerBounded ::
-     forall m a. (MonadThrow m, Integral a, Bounded a)
-  => Integer
-  -> m a
-fromIntegerBounded x
-  | x > toInteger (maxBound :: a) = throwM Overflow
-  | x < toInteger (minBound :: a) = throwM Underflow
-  | otherwise = pure $ fromInteger x
-{-# INLINABLE fromIntegerBounded #-}
-
 fromIntegerScaleBounded ::
      forall m a s. (MonadThrow m, Integral a, Bounded a, KnownNat s)
   => Proxy s
   -> Integer
   -> m a
-fromIntegerScaleBounded ps x
-  | xs > toInteger (maxBound :: a) = throwM Overflow
-  | xs < toInteger (minBound :: a) = throwM Underflow
-  | otherwise = pure $ fromInteger xs
-  where s = natVal ps
-        xs = x * (10 ^ s)
+fromIntegerScaleBounded px x = fromIntegerBounded xs
+  where
+    xs = x * (10 ^ natVal px)
 {-# INLINABLE fromIntegerScaleBounded #-}
+
+
+fromIntegersScaleBounded ::
+     forall m a s. (MonadThrow m, Integral a, Bounded a, KnownNat s)
+  => Proxy s
+  -> Integer
+  -> Integer
+  -> m a
+fromIntegersScaleBounded ps x y = fromIntegerBounded xs
+  where
+    xs = x * (10 ^ natVal ps) + y
+{-# INLINABLE fromIntegersScaleBounded #-}
 
 
 fromIntegerDecimalBoundedIntegral ::
@@ -866,20 +775,6 @@ maxBoundCharsCount _ = length (show (toInteger (maxBound :: a)))
 minBoundCharsCount :: forall a . (Integral a, Bounded a) => Proxy a -> Int
 minBoundCharsCount _ = length (show (toInteger (minBound :: a)))
 
-fromIntegersScaleBounded ::
-     forall m a s. (MonadThrow m, Integral a, Bounded a, KnownNat s)
-  => Proxy s
-  -> Integer
-  -> Integer
-  -> m a
-fromIntegersScaleBounded ps x y
-  | xs > toInteger (maxBound :: a) = throwM Overflow
-  | xs < toInteger (minBound :: a) = throwM Underflow
-  | otherwise = pure $ fromInteger xs
-  where s = natVal ps
-        xs = x * (10 ^ s) + y
-{-# INLINABLE fromIntegersScaleBounded #-}
-
 
 parseDecimalBounded ::
      forall r s p. (KnownNat s, Bounded p, Integral p)
@@ -894,7 +789,7 @@ parseDecimalBounded checkForPlusSign rawInput
     (num, leftOver) <- digits signLeftOver
     let s = fromIntegral (natVal spx) :: Int
     case uncons leftOver of
-      Nothing -> toStringError (fromIntegersScaleBounded spx (sign * num) 0)
+      Nothing -> toStringError (fromIntegerScaleBounded spx (sign * num))
       Just ('.', digitsTxt)
         | length digitsTxt > s -> Left $ "Too much text after the decimal: " ++ digitsTxt
       Just ('.', digitsTxt)

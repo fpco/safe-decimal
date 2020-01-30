@@ -17,6 +17,8 @@ module Numeric.Decimal
   -- ** Round towards zero
   , RoundToZero
   , Truncate
+  -- * Arithmetic
+  , module Numeric.Decimal.BoundedArithmetic
   , module Numeric.Decimal.Internal
   -- * Operations
   , decimalList
@@ -44,6 +46,7 @@ import Data.Word
 import Data.Proxy
 import Data.Scientific
 import GHC.TypeLits
+import Numeric.Decimal.BoundedArithmetic
 import Numeric.Decimal.Internal
 
 -- | A pretty common Decimal type backed by `Int64` and standard rounding

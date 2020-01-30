@@ -27,6 +27,7 @@ custom-setup
 
 library
   exposed-modules: Numeric.Decimal
+                 , Numeric.Decimal.BoundedArithmetic
   other-modules: Numeric.Decimal.Internal
   hs-source-dirs: src
   build-depends: base >=4.8 && <5

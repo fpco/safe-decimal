@@ -44,18 +44,18 @@ showType :: forall t . Typeable t => Proxy t -> String
 showType _ = showsTypeRep (typeRep (Proxy :: Proxy t)) ""
 
 prop_absBounded ::
-     (Show a, Integral a, Bounded a)
+     (Show a, Integral a)
   => [ArithException] -- ^ Exceptions to expect
   -> Extremum a
   -> Property
 prop_absBounded excs (Extremum x) =
-  classify (not withinBounds) "Outside of Bounds" $
-  if withinBounds
+  classify (not noOverflow) "Outside of Bounds" $
+  if noOverflow
     then Right res === resBounded
     else disjoin (fmap ((resBounded ===) . Left) excs)
   where
     res = abs x
-    withinBounds = toInteger res == toInteger (abs x)
+    noOverflow = abs (toInteger x) == toInteger res
     resBounded = toArithException $ absBounded x
 
 prop_plusBounded ::
