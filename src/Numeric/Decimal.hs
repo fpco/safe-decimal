@@ -11,6 +11,10 @@ module Numeric.Decimal
   -- * Rounding
   -- ** Round half up
   , RoundHalfUp
+  -- ** Round half down
+  , RoundHalfDown
+  -- ** Round half even
+  , RoundHalfEven
   -- ** Round down
   , RoundDown
   , Floor
@@ -57,14 +61,26 @@ type Decimal64 s = Decimal RoundHalfUp s Int64
 -- rounding strategy:
 --
 -- >>> :set -XDataKinds
--- >>> roundDecimal <$> (3.65 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- >>> roundDecimal <$> (3.740 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
 -- 3.7
--- >>> roundDecimal <$> (3.75 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- >>> roundDecimal <$> (3.749 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.750 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
 -- 3.8
--- >>> roundDecimal <$> (3.89 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- 3.9
--- >>> roundDecimal <$> (-3.65 :: IO (Decimal RoundHalfUp 2 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- -3.6
+-- >>> roundDecimal <$> (3.751 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (3.760 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (-3.740 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- -3.7
+-- >>> roundDecimal <$> (-3.749 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- -3.7
+-- >>> roundDecimal <$> (-3.750 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- -3.7
+-- >>> roundDecimal <$> (-3.751 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- -3.8
+-- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
+-- -3.8
 --
 -- @since 0.1.0
 data RoundHalfUp
@@ -105,16 +121,169 @@ instance Round RoundHalfUp Word64 where
 
 roundHalfUp :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
 roundHalfUp (Decimal x)
-    | k == 0                    = Decimal x
-    | r >= 5                    = Decimal (q + 1)
-    | signum r < 0 && abs r > 5 = Decimal (q - 1)
-    | otherwise                 = Decimal q
+    | k == 0                     = Decimal x
+    | r >= s1                    = Decimal (q + 1)
+    | signum r < 0 && abs r > s1 = Decimal (q - 1)
+    | otherwise                  = Decimal q
     where
       k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
-      s1 = 10 ^ (k - 1)
-      (q, r) = (`quot` s1) <$> quotRem x (s1 * 10)
+      s1 = 10 ^ k
+      (q, r) = (2 *) <$> quotRem x s1
 {-# INLINABLE roundHalfUp #-}
 
+-- | [Round half down](https://en.wikipedia.org/wiki/Rounding#Round_half_down): A very common
+-- rounding strategy:
+--
+-- >>> :set -XDataKinds
+-- >>> roundDecimal <$> (3.740 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.749 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.750 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.751 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (3.760 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (-3.740 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- -3.7
+-- >>> roundDecimal <$> (-3.749 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- -3.7
+-- >>> roundDecimal <$> (-3.750 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- -3.8
+-- >>> roundDecimal <$> (-3.751 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- -3.8
+-- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
+-- -3.8
+--
+-- @since 0.2.0
+data RoundHalfDown
+
+instance Round RoundHalfDown Integer where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Int where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Int8 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Int16 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Int32 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Int64 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Word where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Word8 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Word16 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Word32 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfDown Word64 where
+  roundDecimal = roundHalfDown
+  {-# INLINABLE roundDecimal #-}
+
+roundHalfDown :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundHalfDown (Decimal x)
+    | k == 0                      = Decimal x
+    | r > s1                      = Decimal (q + 1)
+    | signum r < 0 && abs r >= s1 = Decimal (q - 1)
+    | otherwise                   = Decimal q
+    where
+      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+      s1 = 10 ^ k
+      (q, r) = (2 *) <$> quotRem x s1
+{-# INLINABLE roundHalfDown #-}
+
+-- | [Round half even](https://en.wikipedia.org/wiki/Rounding#Round_half_to_even): if the
+-- fractional part of x is 0.5, then y is the even integer nearest to x.
+--
+-- >>> :set -XDataKinds
+-- >>> roundDecimal <$> (3.650 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- 3.6
+-- >>> roundDecimal <$> (3.740 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.749 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- 3.7
+-- >>> roundDecimal <$> (3.750 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (3.751 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (3.760 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- 3.8
+-- >>> roundDecimal <$> (-3.650 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- -3.6
+-- >>> roundDecimal <$> (-3.740 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- -3.7
+-- >>> roundDecimal <$> (-3.749 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- -3.7
+-- >>> roundDecimal <$> (-3.750 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- -3.8
+-- >>> roundDecimal <$> (-3.751 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- -3.8
+-- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
+-- -3.8
+--
+-- @since 0.2.0
+data RoundHalfEven
+
+instance Round RoundHalfEven Integer where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Int where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Int8 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Int16 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Int32 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Int64 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Word where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Word8 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Word16 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Word32 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfEven Word64 where
+  roundDecimal = roundHalfEven
+  {-# INLINABLE roundDecimal #-}
+
+roundHalfEven :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundHalfEven (Decimal x)
+    | k == 0                     = Decimal x
+    | abs r == s1 && odd q       = Decimal (q + signum r)
+    | abs r == s1                = Decimal q
+    | r > s1                     = Decimal (q + 1)
+    | signum r < 0 && abs r > s1 = Decimal (q - 1)
+    | otherwise                  = Decimal q
+    where
+      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+      s1 = 10 ^ k
+      (q, r) = (2 *) <$> quotRem x s1
+{-# INLINABLE roundHalfEven #-}
 
 -- | [Round down](https://en.wikipedia.org/wiki/Rounding#Rounding_down): Round towards minus infinity:
 --

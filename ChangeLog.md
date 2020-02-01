@@ -9,6 +9,8 @@
   there was unexpected behavior on negative numbers.
 * Addition of `scaleUp` and `scaleUpBounded`
 * Addition of `toFixed`, `fromFixed` and `fromFixedBounded`
+* Fix `RoundHalfUp` algorithm
+* Addition of `RoundHalfDown` and `RoundHalfEven`
 
 ## 0.1.0
 
