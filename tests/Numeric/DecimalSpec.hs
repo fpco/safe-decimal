@@ -171,6 +171,7 @@ specBouned ::
      , NFData a
      , Round RoundHalfUp a
      , Round RoundHalfDown a
+     , Round RoundHalfEven a
      , Round RoundDown a
      , Round RoundToZero a
      )
@@ -233,6 +234,7 @@ specRounding ::
      , Arbitrary p
      , Round RoundHalfUp p
      , Round RoundHalfDown p
+     , Round RoundHalfEven p
      , Round RoundDown p
      , Round RoundToZero p
      )
@@ -244,6 +246,9 @@ specRounding = do
   prop (propNamePrefix . showsDecimalType @RoundHalfDown @(s + k) @p $ "") $
     prop_Rounding @RoundHalfDown @s @k @p
     (roundHalfDownTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundHalfEven @(s + k) @p $ "") $
+    prop_Rounding @RoundHalfEven @s @k @p
+    (roundHalfEvenTo (fromIntegral (natVal (Proxy :: Proxy s))))
   prop (propNamePrefix . showsDecimalType @RoundToZero @(s + k) @p $ "") $
     prop_Rounding @RoundToZero @s @k @p
     (roundRoundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
@@ -401,6 +406,10 @@ roundHalfDownTo to rational =
   where
     s10 = 10 ^ to :: Integer
 
+roundHalfEvenTo :: Natural -> Rational -> Rational
+roundHalfEvenTo to rational =
+  fromInteger (round $ rational * (10 ^ to)) / 10 ^ to
+
 roundFloorTo :: Natural -> Rational -> Rational
 roundFloorTo to rational = (floor (rational * (s10 % 1)) :: Integer) % s10
   where
@@ -424,8 +433,3 @@ _roundCommercial to rational
              then q + 1
              else q) %
           s10
-
--- Once round half even is implemented, this can be used for testing
-_roundBankerTo :: Integer -> Rational -> Rational
-_roundBankerTo to rational =
-  fromInteger (round $ rational * (10 ^ to)) / 10 ^ to
