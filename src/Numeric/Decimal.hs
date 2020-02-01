@@ -156,7 +156,7 @@ roundHalfUp (Decimal x)
 -- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
 -- -3.8
 --
--- @since 0.1.1
+-- @since 0.2.0
 data RoundHalfDown
 
 instance Round RoundHalfDown Integer where
@@ -234,7 +234,7 @@ roundHalfDown (Decimal x)
 -- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
 -- -3.8
 --
--- @since 0.1.1
+-- @since 0.2.0
 data RoundHalfEven
 
 instance Round RoundHalfEven Integer where
