@@ -170,6 +170,7 @@ specBouned ::
      , Bounded a
      , NFData a
      , Round RoundHalfUp a
+     , Round RoundHalfDown a
      , Round RoundDown a
      , Round RoundToZero a
      )
@@ -231,6 +232,7 @@ specRounding ::
      , Typeable p
      , Arbitrary p
      , Round RoundHalfUp p
+     , Round RoundHalfDown p
      , Round RoundDown p
      , Round RoundToZero p
      )
@@ -239,6 +241,9 @@ specRounding = do
   prop (propNamePrefix . showsDecimalType @RoundHalfUp @(s + k) @p $ "") $
     prop_Rounding @RoundHalfUp @s @k @p
     (roundHalfUpTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundHalfDown @(s + k) @p $ "") $
+    prop_Rounding @RoundHalfDown @s @k @p
+    (roundHalfDownTo (fromIntegral (natVal (Proxy :: Proxy s))))
   prop (propNamePrefix . showsDecimalType @RoundToZero @(s + k) @p $ "") $
     prop_Rounding @RoundToZero @s @k @p
     (roundRoundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
@@ -386,7 +391,13 @@ assertExceptionIO isExc action =
 
 roundHalfUpTo :: Natural -> Rational -> Rational
 roundHalfUpTo to rational =
-  floor ((truncate (rational * ((s10 * 10) % 1) + 5) :: Integer) % 10) % s10
+  floor ((rational * ((s10 * 10) % 1) + 5) * (1 % 10)) % s10
+  where
+    s10 = 10 ^ to :: Integer
+
+roundHalfDownTo :: Natural -> Rational -> Rational
+roundHalfDownTo to rational =
+  ceiling ((rational * ((s10 * 10) % 1) - 5) * (1 % 10)) % s10
   where
     s10 = 10 ^ to :: Integer
 
