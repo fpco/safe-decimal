@@ -9,10 +9,64 @@ module Numeric.Decimal.BoundedArithmetic
   , divBounded
   , quotBounded
   , quotRemBounded
+  -- ** Arith Monad
+  , Arith(..)
   ) where
 
 import Control.Exception
 import Control.Monad.Catch
+
+-- | Monad for performing safe computation
+data Arith a
+  = Arith !a
+  | ArithError !SomeException
+
+
+instance Show a => Show (Arith a) where
+  showsPrec n r =
+    case r of
+      Arith a -> showsA "Arith" (shows a)
+      ArithError exc -> showsA "ArithError" (displayException exc ++)
+    where
+      showsA prefix content =
+        let showsExc = (prefix ++) . (' ':) . content
+         in if n == 0
+              then showsExc
+              else ('(' :) . showsExc . (')' :)
+
+instance Functor Arith where
+  fmap f a =
+    case a of
+      Arith r -> Arith (f r)
+      ArithError exc -> ArithError exc
+  {-# INLINE fmap #-}
+
+instance Applicative Arith where
+  pure = Arith
+  {-# INLINE pure #-}
+  (<*>) fa a =
+    case fa of
+      Arith fr ->
+        case a of
+          Arith r -> Arith (fr r)
+          ArithError exc -> ArithError exc
+      ArithError exc -> ArithError exc
+  {-# INLINE (<*>) #-}
+
+instance Monad Arith where
+  return = Arith
+  {-# INLINE return #-}
+  (>>=) fa fab =
+    case fa of
+      Arith fr -> fab fr
+      ArithError exc -> ArithError exc
+  {-# INLINE (>>=) #-}
+
+
+instance MonadThrow Arith where
+  throwM = ArithError . toException
+  {-# INLINE throwM #-}
+
 
 -----------------------------------
 -- Bounded arithmetics ------------

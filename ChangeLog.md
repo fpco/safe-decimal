@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+* Add `Arith` monad and corresponding functions.
 * Make rounding dependent on precision type (extra type argument to the `Round` type class)
 * Rename `RoundFloor` to `RoundDown` (with `Floor` as synonym)
 * Rename `Truncate` to `RoundToZero` (with `Truncate` as synonym)

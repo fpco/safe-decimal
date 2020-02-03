@@ -7,10 +7,9 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module Numeric.Decimal
-  ( Decimal64
-  -- * Rounding
-  -- ** Round half up
-  , RoundHalfUp
+  ( -- * Rounding
+    -- ** Round half up
+    RoundHalfUp
   , roundHalfUp
   -- ** Round half down
   , RoundHalfDown
@@ -58,34 +57,36 @@ import GHC.TypeLits
 import Numeric.Decimal.BoundedArithmetic
 import Numeric.Decimal.Internal
 
--- | A pretty common Decimal type backed by `Int64` and standard rounding
-type Decimal64 s = Decimal RoundHalfUp s Int64
 
-
--- | [Round half up](https://en.wikipedia.org/wiki/Rounding#Round_half_up): A very common
--- rounding strategy:
+-- | [Round half up](https://en.wikipedia.org/wiki/Rounding#Round_half_up) rounding strategy:
 --
 -- >>> :set -XDataKinds
--- >>> roundDecimal <$> (3.740 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.749 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.750 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- 3.8
--- >>> roundDecimal <$> (3.751 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- 3.8
--- >>> roundDecimal <$> (3.760 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- 3.8
--- >>> roundDecimal <$> (-3.740 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- -3.7
--- >>> roundDecimal <$> (-3.749 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- -3.7
--- >>> roundDecimal <$> (-3.750 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- -3.7
--- >>> roundDecimal <$> (-3.751 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- -3.8
--- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfUp 3 Int)) :: IO (Decimal RoundHalfUp 1 Int)
--- -3.8
+-- >>> roundDecimal <$> (3.740 :: Arith (Decimal RoundHalfUp 3 Int)) :: Arith (Decimal RoundHalfUp 1 Int)
+-- Arith 3.7
+--
+-- Or with a bit more concise approach using `arithRoundD` and @TypeApplications@:
+--
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int 3.740
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int 3.749
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int 3.750
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int 3.751
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int 3.760
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int (-3.740)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int (-3.749)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int (-3.750)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int (-3.751)
+-- Arith -3.8
+-- >>> arithRoundD @1 @RoundHalfUp @3 @Int (-3.760)
+-- Arith -3.8
 --
 -- @since 0.1.0
 data RoundHalfUp
@@ -136,30 +137,30 @@ roundHalfUp (Decimal x)
       (q, r) = (2 *) <$> quotRem x s1
 {-# INLINABLE roundHalfUp #-}
 
--- | [Round half down](https://en.wikipedia.org/wiki/Rounding#Round_half_down): A very common
--- rounding strategy:
+-- | [Round half down](https://en.wikipedia.org/wiki/Rounding#Round_half_down) rounding strategy:
 --
 -- >>> :set -XDataKinds
--- >>> roundDecimal <$> (3.740 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.749 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.750 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.751 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- 3.8
--- >>> roundDecimal <$> (3.760 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- 3.8
--- >>> roundDecimal <$> (-3.740 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- -3.7
--- >>> roundDecimal <$> (-3.749 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- -3.7
--- >>> roundDecimal <$> (-3.750 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- -3.8
--- >>> roundDecimal <$> (-3.751 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- -3.8
--- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfDown 3 Int)) :: IO (Decimal RoundHalfDown 1 Int)
--- -3.8
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int 3.740
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int 3.749
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int 3.750
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int 3.751
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int 3.760
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int (-3.740)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int (-3.749)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int (-3.750)
+-- Arith -3.8
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int (-3.751)
+-- Arith -3.8
+-- >>> arithRoundD @1 @RoundHalfDown @3 @Int (-3.760)
+-- Arith -3.8
 --
 -- @since 0.2.0
 data RoundHalfDown
@@ -210,34 +211,36 @@ roundHalfDown (Decimal x)
       (q, r) = (2 *) <$> quotRem x s1
 {-# INLINABLE roundHalfDown #-}
 
--- | [Round half even](https://en.wikipedia.org/wiki/Rounding#Round_half_to_even): if the
--- fractional part of x is 0.5, then y is the even integer nearest to x.
+-- | [Round half even](https://en.wikipedia.org/wiki/Rounding#Round_half_to_even) rounding
+-- strategy. If the fractional part of x is 0.5, then y is the even integer nearest to
+-- x. This is the default rounding strategy in Haskell implemented by `round`.
 --
 -- >>> :set -XDataKinds
--- >>> roundDecimal <$> (3.650 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- 3.6
--- >>> roundDecimal <$> (3.740 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.749 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.750 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- 3.8
--- >>> roundDecimal <$> (3.751 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- 3.8
--- >>> roundDecimal <$> (3.760 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- 3.8
--- >>> roundDecimal <$> (-3.650 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- -3.6
--- >>> roundDecimal <$> (-3.740 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- -3.7
--- >>> roundDecimal <$> (-3.749 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- -3.7
--- >>> roundDecimal <$> (-3.750 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- -3.8
--- >>> roundDecimal <$> (-3.751 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- -3.8
--- >>> roundDecimal <$> (-3.760 :: IO (Decimal RoundHalfEven 3 Int)) :: IO (Decimal RoundHalfEven 1 Int)
--- -3.8
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int 3.650
+-- Arith 3.6
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int 3.740
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int 3.749
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int 3.750
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int 3.751
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int 3.760
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int (-3.650)
+-- Arith -3.6
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int (-3.740)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int (-3.749)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int (-3.750)
+-- Arith -3.8
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int (-3.751)
+-- Arith -3.8
+-- >>> arithRoundD @1 @RoundHalfEven @3 @Int (-3.760)
+-- Arith -3.8
 --
 -- @since 0.2.0
 data RoundHalfEven
@@ -290,17 +293,20 @@ roundHalfEven (Decimal x)
       (q, r) = (2 *) <$> quotRem x s1
 {-# INLINABLE roundHalfEven #-}
 
--- | [Round down](https://en.wikipedia.org/wiki/Rounding#Rounding_down): Round towards minus infinity:
+-- | [Round down](https://en.wikipedia.org/wiki/Rounding#Rounding_down) rounding
+-- startegy. This the strategy that is implemented by `floor`. Round towards minus
+-- infinity:
 --
 -- >>> :set -XDataKinds
--- >>> roundDecimal <$> (3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
--- 3.6
--- >>> roundDecimal <$> (3.75 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.89 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
--- 3.8
--- >>> roundDecimal <$> (-3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Decimal RoundDown 1 Int)
--- -3.7
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundDown @2 @Int 3.65
+-- Arith 3.6
+-- >>> arithRoundD @1 @RoundDown @2 @Int 3.75
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundDown @2 @Int 3.89
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundDown @2 @Int (-3.65)
+-- Arith -3.7
 --
 -- @since 0.2.0
 data RoundDown
@@ -352,18 +358,20 @@ roundDown (Decimal x)
     (q, r) = quotRem x (10 ^ k)
 {-# INLINABLE roundDown #-}
 
--- | [Round towards zero](https://en.wikipedia.org/wiki/Rounding#Round_towards_zero): drop
--- the fractional digits, regardless of the sign.
+-- | [Round towards zero](https://en.wikipedia.org/wiki/Rounding#Round_towards_zero)
+-- strategy. Similar to Haskell's `truncate`. Drop the fractional digits, regardless of
+-- the sign.
 --
 -- >>> :set -XDataKinds
--- >>> roundDecimal <$> (3.65 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
--- 3.6
--- >>> roundDecimal <$> (3.75 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
--- 3.7
--- >>> roundDecimal <$> (3.89 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
--- 3.8
--- >>> roundDecimal <$> (-3.65 :: IO (Decimal Truncate 2 Int)) :: IO (Decimal Truncate 1 Int)
--- -3.6
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundToZero @2 @Int 3.65
+-- Arith 3.6
+-- >>> arithRoundD @1 @RoundToZero @2 @Int 3.75
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundToZero @2 @Int 3.89
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundToZero @2 @Int (-3.65)
+-- Arith -3.6
 --
 -- @since 0.2.0
 data RoundToZero
@@ -424,8 +432,8 @@ roundToZero (Decimal x) = Decimal (quot x (10 ^ k))
 --
 -- If scaling is what you need use `fromIntegral` instead:
 --
--- >>> mapM fromIntegral [1, 20, 300 :: Int] :: Either SomeException [Decimal RoundHalfUp 2 Int]
--- Right [1.00,20.00,300.00]
+-- >>> sequenceA [1, 20, 300] :: Arith [Decimal RoundHalfUp 2 Int]
+-- Arith [1.00,20.00,300.00]
 --
 -- @since 0.1.0
 decimalList :: Integral p => [p] -> [Decimal r s p]
@@ -435,8 +443,8 @@ decimalList = coerce
 -- | Sum a list of decimal numbers
 --
 -- >>> :set -XDataKinds
--- >>> mapM fromRational [1.1, 20.02, 300.003] >>= sumDecimalBounded :: IO (Decimal RoundHalfUp 3 Int)
--- 321.123
+-- >>> sequenceA [1.1, 20.02, 300.003] >>= sumDecimalBounded :: Arith (Decimal RoundHalfUp 3 Int)
+-- Arith 321.123
 --
 -- @since 0.2.0
 sumDecimalBounded ::
@@ -451,7 +459,7 @@ sumDecimalBounded = foldM plusDecimalBounded (Decimal 0)
 -- >>> :set -XDataKinds
 -- >>> product [1.1, 20.02, 300.003] :: Double
 -- 6606.666066000001
--- >>> xs <- mapM fromRational [1.1, 20.02, 300.003] :: IO [Decimal RoundHalfUp 4 Int]
+-- >>> xs <- arithM (mapM fromRational [1.1, 20.02, 300.003] :: Arith [Decimal RoundHalfUp 4 Int])
 -- >>> xs
 -- [1.1000,20.0200,300.0030]
 -- >>> productDecimalBoundedWithRounding xs
@@ -475,7 +483,10 @@ productDecimalBoundedWithRounding ds =
 --
 -- @since 0.1.0
 toScientificDecimal :: (Integral p, KnownNat s) => Decimal r s p -> Scientific
-toScientificDecimal dec = scientific (toInteger (unwrapDecimal dec)) (fromInteger (negate (getScale dec)))
+toScientificDecimal dec =
+  scientific
+    (toInteger (unwrapDecimal dec))
+    (fromInteger (negate (getScale dec)))
 
 -- | Convert Scientific to Decimal without loss of precision. Will return `Left` `Underflow` if
 -- `Scientific` has too many decimal places, more than `Decimal` scaling is capable to handle.
@@ -517,8 +528,8 @@ type instance FixedScale E12 = 12
 
 -- | Convert a `Decimal` to a `Fixed` with the exactly same precision.
 --
--- >>> toFixedDecimal <$> (3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Fixed E2)
--- 3.65
+-- >>> toFixedDecimal <$> (3.65 :: Arith (Decimal RoundDown 2 Int)) :: Arith (Fixed E2)
+-- Arith 3.65
 -- >>> toFixedDecimal $ fromFixedDecimal (123.45 :: Fixed E2) :: Fixed E2
 -- 123.45
 --
@@ -538,12 +549,12 @@ fromFixedDecimal = coerce
 -- | Convert a `Fixed` to a decimal backed by a bounded integral with the exactly same
 -- precision
 --
--- >>> fromFixedDecimalBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int)
--- 123.458
--- >>> fromFixedDecimalBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int8)
--- *** Exception: arithmetic overflow
--- >>> fromFixedDecimalBounded (-123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Word)
--- *** Exception: arithmetic underflow
+-- >>> fromFixedDecimalBounded (123.458 :: Fixed E3) :: Arith (Decimal RoundToZero 3 Int)
+-- Arith 123.458
+-- >>> fromFixedDecimalBounded (123.458 :: Fixed E3) :: Arith (Decimal RoundToZero 3 Int8)
+-- ArithError arithmetic overflow
+-- >>> fromFixedDecimalBounded (-123.458 :: Fixed E3) :: Arith (Decimal RoundToZero 3 Word)
+-- ArithError arithmetic underflow
 --
 -- @since 0.2.0
 fromFixedDecimalBounded ::
