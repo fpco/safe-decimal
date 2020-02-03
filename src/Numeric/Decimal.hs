@@ -11,16 +11,21 @@ module Numeric.Decimal
   -- * Rounding
   -- ** Round half up
   , RoundHalfUp
+  , roundHalfUp
   -- ** Round half down
   , RoundHalfDown
+  , roundHalfDown
   -- ** Round half even
   , RoundHalfEven
+  , roundHalfEven
   -- ** Round down
   , RoundDown
   , Floor
+  , roundDown
   -- ** Round towards zero
   , RoundToZero
   , Truncate
+  , roundToZero
   -- * Arithmetic
   , module Numeric.Decimal.BoundedArithmetic
   , module Numeric.Decimal.Internal
@@ -31,13 +36,13 @@ module Numeric.Decimal
   -- * Conversion
   -- ** Fixed
   , FixedScale
-  , toFixed
-  , fromFixed
-  , fromFixedBounded
+  , toFixedDecimal
+  , fromFixedDecimal
+  , fromFixedDecimalBounded
   -- ** Scientific
-  , toScientific
-  , fromScientific
-  , fromScientificBounded
+  , toScientificDecimal
+  , fromScientificDecimal
+  , fromScientificDecimalBounded
   ) where
 
 import Control.Exception
@@ -370,43 +375,43 @@ data RoundToZero
 type Truncate = RoundToZero
 
 instance Round RoundToZero Integer where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
 instance Round RoundToZero Int where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Int8 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Int16 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Int32 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Int64 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Word where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Word8 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Word16 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Word32 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Word64 where
-  roundDecimal = roundRoundToZero
+  roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}
 
-roundRoundToZero :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
-roundRoundToZero (Decimal x) = Decimal (quot x (10 ^ k))
+roundToZero :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundToZero (Decimal x) = Decimal (quot x (10 ^ k))
   where
     k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
-{-# INLINABLE roundRoundToZero #-}
+{-# INLINABLE roundToZero #-}
 
 -- | /O(1)/ - Conversion of a list.
 --
@@ -469,15 +474,18 @@ productDecimalBoundedWithRounding ds =
 -- | Convert a `Decimal` to `Scientific`
 --
 -- @since 0.1.0
-toScientific :: (Integral p, KnownNat s) => Decimal r s p -> Scientific
-toScientific dec = scientific (toInteger (unwrapDecimal dec)) (fromInteger (negate (getScale dec)))
+toScientificDecimal :: (Integral p, KnownNat s) => Decimal r s p -> Scientific
+toScientificDecimal dec = scientific (toInteger (unwrapDecimal dec)) (fromInteger (negate (getScale dec)))
 
 -- | Convert Scientific to Decimal without loss of precision. Will return `Left` `Underflow` if
 -- `Scientific` has too many decimal places, more than `Decimal` scaling is capable to handle.
 --
 -- @since 0.1.0
-fromScientific :: forall m r s . (MonadThrow m, KnownNat s) => Scientific -> m (Decimal r s Integer)
-fromScientific num
+fromScientificDecimal ::
+     forall m r s. (MonadThrow m, KnownNat s)
+  => Scientific
+  -> m (Decimal r s Integer)
+fromScientificDecimal num
   | point10 > s = throwM Underflow
   | otherwise = pure (Decimal (coefficient num * 10 ^ (s - point10)))
   where
@@ -487,12 +495,12 @@ fromScientific num
 -- | Convert from Scientific to Decimal while checking for Overflow/Underflow
 --
 -- @since 0.1.0
-fromScientificBounded ::
+fromScientificDecimalBounded ::
      forall m r s p. (MonadThrow m, Integral p, Bounded p, KnownNat s)
   => Scientific
   -> m (Decimal r s p)
-fromScientificBounded num = do
-  Decimal integer :: Decimal r s Integer <- fromScientific num
+fromScientificDecimalBounded num = do
+  Decimal integer :: Decimal r s Integer <- fromScientificDecimal num
   Decimal <$> fromIntegerBounded integer
 
 
@@ -509,37 +517,37 @@ type instance FixedScale E12 = 12
 
 -- | Convert a `Decimal` to a `Fixed` with the exactly same precision.
 --
--- >>> toFixed <$> (3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Fixed E2)
+-- >>> toFixedDecimal <$> (3.65 :: IO (Decimal RoundDown 2 Int)) :: IO (Fixed E2)
 -- 3.65
--- >>> toFixed $ fromFixed (123.45 :: Fixed E2) :: Fixed E2
+-- >>> toFixedDecimal $ fromFixedDecimal (123.45 :: Fixed E2) :: Fixed E2
 -- 123.45
 --
 -- @since 0.2.0
-toFixed :: (s ~ FixedScale e, Integral p) => Decimal r s p -> Fixed e
-toFixed = MkFixed . toInteger . unwrapDecimal
+toFixedDecimal :: (s ~ FixedScale e, Integral p) => Decimal r s p -> Fixed e
+toFixedDecimal = MkFixed . toInteger . unwrapDecimal
 
 -- | Convert a `Fixed` to a `Decimal` with the exactly same precision
 --
--- >>> fromFixed (123.45 :: Fixed E2)
+-- >>> fromFixedDecimal (123.45 :: Fixed E2)
 -- 123.45
 --
 -- @since 0.2.0
-fromFixed :: s ~ FixedScale e => Fixed e -> Decimal r s Integer
-fromFixed = coerce
+fromFixedDecimal :: s ~ FixedScale e => Fixed e -> Decimal r s Integer
+fromFixedDecimal = coerce
 
 -- | Convert a `Fixed` to a decimal backed by a bounded integral with the exactly same
 -- precision
 --
--- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int)
+-- >>> fromFixedDecimalBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int)
 -- 123.458
--- >>> fromFixedBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int8)
+-- >>> fromFixedDecimalBounded (123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Int8)
 -- *** Exception: arithmetic overflow
--- >>> fromFixedBounded (-123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Word)
+-- >>> fromFixedDecimalBounded (-123.458 :: Fixed E3) :: IO (Decimal RoundToZero 3 Word)
 -- *** Exception: arithmetic underflow
 --
 -- @since 0.2.0
-fromFixedBounded ::
+fromFixedDecimalBounded ::
      (s ~ FixedScale e, MonadThrow m, Integral p, Bounded p)
   => Fixed e
   -> m (Decimal r s p)
-fromFixedBounded = fromIntegerDecimalBounded . fromFixed
+fromFixedDecimalBounded = fromIntegerDecimalBounded . fromFixedDecimal

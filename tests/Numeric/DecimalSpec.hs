@@ -313,8 +313,13 @@ prop_toFromScientific ::
   -> Decimal r s p
   -> Property
 prop_toFromScientific _ _ _ d =
-  (Right d === toArithException (fmap fromInteger <$> fromScientific (toScientific d))) .&&.
-  (Right d === toArithException (fmap fromInteger <$> fromScientific (normalize (toScientific d))))
+  (Right d ===
+   toArithException
+     (fmap fromInteger <$> fromScientificDecimal (toScientificDecimal d))) .&&.
+  (Right d ===
+   toArithException
+     (fmap fromInteger <$>
+      fromScientificDecimal (normalize (toScientificDecimal d))))
 
 prop_toFromScientificBounded ::
      (Integral p, Bounded p, KnownNat s)
@@ -324,8 +329,11 @@ prop_toFromScientificBounded ::
   -> Decimal r s p
   -> Property
 prop_toFromScientificBounded _ _ _ d =
-  (Right d === toArithException (fromScientificBounded (toScientific d))) .&&.
-  (Right d === toArithException (fromScientificBounded (normalize (toScientific d))))
+  (Right d ===
+   toArithException (fromScientificDecimalBounded (toScientificDecimal d))) .&&.
+  (Right d ===
+   toArithException
+     (fromScientificDecimalBounded (normalize (toScientificDecimal d))))
 
 prop_showParseBouded ::
      (Show p, Integral p, Bounded p, KnownNat s)

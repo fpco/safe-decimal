@@ -8,7 +8,8 @@
 * Fix conversion `fromRational` to throw `Underflow` instead of rounding. Without this fix
   there was unexpected behavior on negative numbers.
 * Addition of `scaleUp` and `scaleUpBounded`
-* Addition of `toFixed`, `fromFixed` and `fromFixedBounded`
+* Addition of `toFixedDecimal`, `fromFixedDecimal` and `fromFixedDecimalBounded`
+* Many function renames, just to make sure they all follow the same convention.
 * Fix `RoundHalfUp` algorithm
 * Addition of `RoundHalfDown` and `RoundHalfEven`
 

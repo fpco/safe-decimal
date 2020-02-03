@@ -52,6 +52,7 @@ module Numeric.Decimal.Internal
   , divideDecimalBoundedWithRounding
 
   , fromIntegralDecimalBounded
+  , integralDecimalToDecimalBounded
   , quotRemDecimalBounded
   , fromIntegerDecimalBounded
   , fromIntegerDecimalBoundedIntegral
@@ -86,7 +87,7 @@ import Text.Printf
 -- | Decimal number with custom precision (@p@) and type level scaling (@s@) parameter (i.e. number
 -- of digits after the decimal point). As well as the rounding (@r@) strategy to use.
 newtype Decimal r (s :: Nat) p = Decimal p
-  deriving (Enum, Ord, Eq, NFData, Functor, Generic)
+  deriving (Ord, Eq, NFData, Functor, Generic)
 
 instance Applicative (Decimal r s) where
   pure = Decimal
@@ -243,6 +244,23 @@ fromIntegralDecimalBounded ::
      (Integral p, Bounded p, KnownNat s, MonadThrow m) => p -> m (Decimal r s p)
 fromIntegralDecimalBounded = fromIntegerDecimalBounded . fromIntegerDecimal . toInteger
 {-# INLINABLE fromIntegralDecimalBounded #-}
+
+-- | Convert a decimal backed by an integral to another decimal backed by a bounded
+-- integeral, while checking for `Overflow`/`Underflow`
+--
+-- >>> import Numeric.Decimal
+-- >>> fromIntegralDecimalBounded 1234 :: IO (Decimal RoundHalfUp 4 Int)
+-- 1234.0000
+-- >>> fromIntegralDecimalBounded 1234 :: IO (Decimal RoundHalfUp 4 Int16)
+-- *** Exception: arithmetic overflow
+--
+-- @since 0.2.0
+integralDecimalToDecimalBounded ::
+     (Integral p', Integral p, Bounded p, KnownNat s, MonadThrow m)
+  => Decimal r s p'
+  -> m (Decimal r s p)
+integralDecimalToDecimalBounded = fromIntegerDecimalBounded . fmap toInteger
+{-# INLINABLE integralDecimalToDecimalBounded #-}
 
 
 bindM2Decimal ::
