@@ -65,10 +65,8 @@ module Numeric.Decimal.Internal
   , MonadThrow(..)
   , ArithException(..)
   , SomeException
-  , arithM
-  , arithMaybe
-  , arithEither
   , arithD
+  , arithMD
   , arithMaybeD
   , arithEitherD
   , arithRoundD
@@ -104,35 +102,6 @@ instance Applicative (Decimal r s) where
   {-# INLINABLE (<*>) #-}
 
 
--- | Convert `Arith` computation to any `MonadThrow`
---
--- >>> import Numeric.Decimal
--- >>> :set -XDataKinds
--- >>> arithM (1.1 * 123 :: Arith (Decimal RoundDown 3 Int))
--- 135.300
--- >>> arithM (1.1 - 123 :: Arith (Decimal RoundDown 3 Word))
--- *** Exception: arithmetic underflow
--- >>> 1.1 - 123 :: Arith (Decimal RoundDown 3 Word)
--- ArithError arithmetic underflow
---
--- @since 0.2.0
-arithM :: MonadThrow m => Arith a -> m a
-arithM = \case
-  Arith a -> pure a
-  ArithError exc -> throwM exc
-
--- | A version of `arithM` restricted to `Maybe`
---
--- @since 0.2.0
-arithMaybe :: Arith a -> Maybe a
-arithMaybe = arithM
-
--- | A version of `arithM` restricted to `Either`
---
--- @since 0.2.0
-arithEither :: Arith a -> Either SomeException a
-arithEither = arithM
-
 -- | A way to type restrict a polymorphic computation.
 --
 -- >>> import Numeric.Decimal
@@ -146,6 +115,20 @@ arithRoundD ::
   -> Arith (Decimal r s' p)
 arithRoundD = fmap roundDecimal
 
+-- | A way to type restrict a polymorphic computation.
+--
+-- `arithD` provide an easy way to use @TypeApplications@ to supply a type of Decimal:
+--
+-- >>> import Numeric.Decimal
+-- >>> :set -XDataKinds -XTypeApplications
+-- >>> arithMD @RoundDown @3 @Word (1.1 + 123)
+-- 124.100
+-- >>> arithMD @RoundDown @3 @Word (1.1 - 123)
+-- *** Exception: arithmetic underflow
+--
+-- @since 0.2.0
+arithMD :: forall r s p m . MonadThrow m => Arith (Decimal r s p) -> m (Decimal r s p)
+arithMD = arithM
 
 -- | A way to type restrict a polymorphic computation.
 --
@@ -194,11 +177,23 @@ class Integral p => Round r p where
 
 -- | Change the rounding strategy of a `Decimal`
 --
+-- >>> import Numeric.Decimal
+-- >>> :set -XDataKinds -XTypeApplications
+-- >>> d <- arithMD @RoundHalfUp @3 @Int 123.45
+-- >>> roundDecimal d :: Decimal RoundHalfUp 1 Int
+-- 123.5
+-- >>> :t castRounding @RoundDown d
+-- castRounding @RoundDown d :: Decimal RoundDown 3 Int
+-- >>> roundDecimal (castRounding d) :: Decimal RoundDown 1 Int
+-- 123.4
+--
 -- @since 0.2.0
-castRounding :: Decimal r s p -> Decimal r' s p
+castRounding :: forall r' r s p . Decimal r s p -> Decimal r' s p
 castRounding = coerce
 
-
+-- | Exception thrown whenever operation cannot be performed withou loosing information
+--
+-- @since 0.2.0
 data PrecisionLoss = PrecisionLoss !Rational !Integer
   deriving Eq
 
@@ -268,7 +263,12 @@ scaleUpBounded (Decimal d) = do
 splitDecimal :: (Integral p, KnownNat s) => Decimal r s p -> (p, p)
 splitDecimal d@(Decimal v) = v `quotRem` (10 ^ getScale d)
 
--- | Get the numerator. Same as `toInteger . unwrapDecimal`
+-- | Get the numerator. Same as @`toInteger` . `unwrapDecimal`@
+--
+-- >>> import Numeric.Decimal
+-- >>> :set -XDataKinds -XTypeApplications
+-- >>> decimalNumerator <$> arithD @RoundHalfEven @3 @Int 123.45
+-- Arith 123450
 --
 -- @since 0.2.0
 decimalNumerator :: Integral p => Decimal r s p -> Integer
@@ -276,6 +276,11 @@ decimalNumerator (Decimal i) = toInteger i
 
 -- | Get the decimal denominator. Always will be a multiple of @10@. Does not evaluate the
 -- argument.
+--
+-- >>> import Numeric.Decimal
+-- >>> :set -XDataKinds -XTypeApplications
+-- >>> decimalDenominator <$> arithD @RoundHalfEven @3 @Int 123.45
+-- Arith 1000
 --
 -- @since 0.2.0
 decimalDenominator :: KnownNat s => Decimal r s p -> Integer

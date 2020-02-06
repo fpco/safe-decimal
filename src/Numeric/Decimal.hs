@@ -7,9 +7,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 module Numeric.Decimal
-  ( -- * Rounding
+  (
+  -- * Arithmetic
+    module Numeric.Decimal.BoundedArithmetic
+  , module Numeric.Decimal.Internal
+  -- * Rounding
     -- ** Round half up
-    RoundHalfUp
+  , RoundHalfUp
   , roundHalfUp
   -- ** Round half down
   , RoundHalfDown
@@ -25,9 +29,6 @@ module Numeric.Decimal
   , RoundToZero
   , Truncate
   , roundToZero
-  -- * Arithmetic
-  , module Numeric.Decimal.BoundedArithmetic
-  , module Numeric.Decimal.Internal
   -- * Operations
   , decimalList
   , sumDecimalBounded

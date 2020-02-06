@@ -1,7 +1,14 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Numeric.Decimal.BoundedArithmetic
-  ( -- ** Bounded
-    plusBounded
+  (
+  -- * Arith Monad
+    Arith(..)
+  , arithM
+  , arithMaybe
+  , arithEither
+  -- * Bounded
+  , plusBounded
   , minusBounded
   , timesBounded
   , absBounded
@@ -9,8 +16,6 @@ module Numeric.Decimal.BoundedArithmetic
   , divBounded
   , quotBounded
   , quotRemBounded
-  -- ** Arith Monad
-  , Arith(..)
   ) where
 
 import Control.Exception
@@ -20,6 +25,36 @@ import Control.Monad.Catch
 data Arith a
   = Arith !a
   | ArithError !SomeException
+
+
+-- | Convert `Arith` computation to any `MonadThrow`
+--
+-- >>> import Numeric.Decimal
+-- >>> :set -XDataKinds
+-- >>> arithM (1.1 * 123 :: Arith (Decimal RoundDown 3 Int))
+-- 135.300
+-- >>> arithM (1.1 - 123 :: Arith (Decimal RoundDown 3 Word))
+-- *** Exception: arithmetic underflow
+-- >>> 1.1 - 123 :: Arith (Decimal RoundDown 3 Word)
+-- ArithError arithmetic underflow
+--
+-- @since 0.2.0
+arithM :: MonadThrow m => Arith a -> m a
+arithM = \case
+  Arith a -> pure a
+  ArithError exc -> throwM exc
+
+-- | A version of `arithM` restricted to `Maybe`
+--
+-- @since 0.2.0
+arithMaybe :: Arith a -> Maybe a
+arithMaybe = arithM
+
+-- | A version of `arithM` restricted to `Either`
+--
+-- @since 0.2.0
+arithEither :: Arith a -> Either SomeException a
+arithEither = arithM
 
 
 instance Show a => Show (Arith a) where
