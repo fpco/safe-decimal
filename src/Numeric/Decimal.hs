@@ -12,7 +12,7 @@ module Numeric.Decimal
     module Numeric.Decimal.BoundedArithmetic
   , module Numeric.Decimal.Internal
   -- * Rounding
-    -- ** Round half up
+  -- ** Round half up
   , RoundHalfUp
   , roundHalfUp
   -- ** Round half down

@@ -26,6 +26,9 @@ data Arith a
   = Arith !a
   | ArithError !SomeException
 
+instance Bounded a => Bounded (Arith a) where
+  maxBound = Arith maxBound
+  minBound = Arith minBound
 
 -- | Convert `Arith` computation to any `MonadThrow`
 --
