@@ -251,7 +251,7 @@ specRounding = do
     (roundHalfEvenTo (fromIntegral (natVal (Proxy :: Proxy s))))
   prop (propNamePrefix . showsDecimalType @RoundToZero @(s + k) @p $ "") $
     prop_Rounding @RoundToZero @s @k @p
-    (roundRoundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
+    (roundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
   prop (propNamePrefix . showsDecimalType @RoundDown @(s + k) @p $ "") $
     prop_Rounding @RoundDown @s @k @p
     (roundFloorTo (fromIntegral (natVal (Proxy :: Proxy s))))
@@ -423,8 +423,8 @@ roundFloorTo to rational = (floor (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
-roundRoundToZeroTo :: Natural -> Rational -> Rational
-roundRoundToZeroTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
+roundToZeroTo :: Natural -> Rational -> Rational
+roundToZeroTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
