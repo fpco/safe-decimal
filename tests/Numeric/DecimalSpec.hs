@@ -172,6 +172,8 @@ specBouned ::
      , Round RoundHalfUp a
      , Round RoundHalfDown a
      , Round RoundHalfEven a
+     , Round RoundHalfToZero a
+     , Round RoundHalfFromZero a
      , Round RoundDown a
      , Round RoundToZero a
      )
@@ -235,6 +237,8 @@ specRounding ::
      , Round RoundHalfUp p
      , Round RoundHalfDown p
      , Round RoundHalfEven p
+     , Round RoundHalfToZero p
+     , Round RoundHalfFromZero p
      , Round RoundDown p
      , Round RoundToZero p
      )
@@ -249,6 +253,12 @@ specRounding = do
   prop (propNamePrefix . showsDecimalType @RoundHalfEven @(s + k) @p $ "") $
     prop_Rounding @RoundHalfEven @s @k @p
     (roundHalfEvenTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundHalfToZero @(s + k) @p $ "") $
+    prop_Rounding @RoundHalfToZero @s @k @p
+    (roundHalfToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundHalfFromZero @(s + k) @p $ "") $
+    prop_Rounding @RoundHalfFromZero @s @k @p
+    (roundHalfFromZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
   prop (propNamePrefix . showsDecimalType @RoundToZero @(s + k) @p $ "") $
     prop_Rounding @RoundToZero @s @k @p
     (roundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
@@ -428,9 +438,21 @@ roundToZeroTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
--- Use for testing once HalfAwayFromZero is implemented
-_roundCommercial :: Natural -> Rational -> Rational
-_roundCommercial to rational
+roundHalfToZeroTo :: Natural -> Rational -> Rational
+roundHalfToZeroTo to rational
+  | rational < 0 = negate (roundPositive (negate rational))
+  | otherwise = roundPositive rational
+  where
+    s10 = 10 ^ to :: Integer
+    roundPositive positiveRational =
+      let (q, r) = quotRem (truncate (positiveRational * (s10 * 10 % 1)) :: Integer) 10
+       in (if r > 5
+             then q + 1
+             else q) %
+          s10
+
+roundHalfFromZeroTo :: Natural -> Rational -> Rational
+roundHalfFromZeroTo to rational
   | rational < 0 = negate (roundPositive (negate rational))
   | otherwise = roundPositive rational
   where

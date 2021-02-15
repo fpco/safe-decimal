@@ -21,6 +21,12 @@ module Numeric.Decimal
   -- ** Round half even
   , RoundHalfEven
   , roundHalfEven
+  -- ** Round half to zero
+  , RoundHalfToZero
+  , roundHalfToZero
+  -- ** Round half from zero
+  , RoundHalfFromZero
+  , roundHalfFromZero
   -- ** Round down
   , RoundDown
   , Floor
@@ -293,6 +299,144 @@ roundHalfEven (Decimal x)
       s1 = 10 ^ k
       (q, r) = (2 *) <$> quotRem x s1
 {-# INLINABLE roundHalfEven #-}
+
+-- | [Round half towards zero](https://en.wikipedia.org/wiki/Rounding#Round_half_towards_zero) rounding
+-- strategy. If the fraction of x is exactly 0.5, then y = x − 0.5 if x is positive, and y = x + 0.5 if x is negative.
+--
+-- >>> :set -XDataKinds
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundHalfToZero @3 @Int 3.650
+-- Arith 3.6
+-- >>> arithRoundD @1 @RoundHalfToZero @3 @Int 3.740
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfToZero @3 @Int 3.750
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.650)
+-- Arith -3.6
+-- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.740)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.750)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.760)
+-- Arith -3.8
+
+-- @since 0.2.0
+data RoundHalfToZero
+
+instance Round RoundHalfToZero Integer where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Int where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Int8 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Int16 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Int32 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Int64 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Word where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Word8 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Word16 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Word32 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfToZero Word64 where
+  roundDecimal = roundHalfToZero
+  {-# INLINABLE roundDecimal #-}
+
+roundHalfToZero :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundHalfToZero (Decimal x)
+    | k == 0                     = Decimal x
+    | r > s1                    = Decimal (q + 1)
+    | signum r < 0 && abs r > s1 = Decimal (q - 1)
+    | otherwise                  = Decimal q
+    where
+      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+      s1 = 10 ^ k
+      (q, r) = (2 *) <$> quotRem x s1
+{-# INLINABLE roundHalfToZero #-}
+
+-- | [Round half away from zero](https://en.wikipedia.org/wiki/Rounding#Round_half_away_from_zero) rounding
+-- strategy. If the fraction of x is exactly 0.5, then y = x + 0.5 if x is positive, and y = x − 0.5 if x is negative.
+--
+-- >>> :set -XDataKinds
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int 3.650
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int 3.740
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int 3.750
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.650)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.740)
+-- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.750)
+-- Arith -3.8
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.760)
+-- Arith -3.8
+
+-- @since 0.2.0
+data RoundHalfFromZero
+
+instance Round RoundHalfFromZero Integer where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Int where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Int8 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Int16 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Int32 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Int64 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Word where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Word8 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Word16 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Word32 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundHalfFromZero Word64 where
+  roundDecimal = roundHalfFromZero
+  {-# INLINABLE roundDecimal #-}
+
+roundHalfFromZero :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundHalfFromZero (Decimal x)
+    | k == 0                      = Decimal x
+    | r >= s1                     = Decimal (q + 1)
+    | signum r < 0 && abs r >= s1 = Decimal (q - 1)
+    | otherwise                   = Decimal q
+    where
+      k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+      s1 = 10 ^ k
+      (q, r) = (2 *) <$> quotRem x s1
+{-# INLINABLE roundHalfFromZero #-}
 
 -- | [Round down](https://en.wikipedia.org/wiki/Rounding#Rounding_down) rounding
 -- startegy. This the strategy that is implemented by `floor`. Round towards minus
