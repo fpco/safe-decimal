@@ -309,14 +309,14 @@ roundHalfEven (Decimal x)
 -- Arith 3.6
 -- >>> arithRoundD @1 @RoundHalfToZero @3 @Int 3.740
 -- Arith 3.7
--- >>> arithRoundD @1 @RoundHalfToZero @3 @Int 3.750
--- Arith 3.7
+-- >>> arithRoundD @1 @RoundHalfToZero @4 @Int 3.7501
+-- Arith 3.8
 -- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.650)
 -- Arith -3.6
 -- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.740)
 -- Arith -3.7
--- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.750)
--- Arith -3.7
+-- >>> arithRoundD @1 @RoundHalfToZero @4 @Int (-3.7501)
+-- Arith -3.8
 -- >>> arithRoundD @1 @RoundHalfToZero @3 @Int (-3.760)
 -- Arith -3.8
 
@@ -360,7 +360,7 @@ instance Round RoundHalfToZero Word64 where
 roundHalfToZero :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
 roundHalfToZero (Decimal x)
     | k == 0                     = Decimal x
-    | r > s1                    = Decimal (q + 1)
+    | r > s1                     = Decimal (q + 1)
     | signum r < 0 && abs r > s1 = Decimal (q - 1)
     | otherwise                  = Decimal q
     where
@@ -378,13 +378,13 @@ roundHalfToZero (Decimal x)
 -- Arith 3.7
 -- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int 3.740
 -- Arith 3.7
--- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int 3.750
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int 3.751
 -- Arith 3.8
 -- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.650)
 -- Arith -3.7
 -- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.740)
 -- Arith -3.7
--- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.750)
+-- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.751)
 -- Arith -3.8
 -- >>> arithRoundD @1 @RoundHalfFromZero @3 @Int (-3.760)
 -- Arith -3.8

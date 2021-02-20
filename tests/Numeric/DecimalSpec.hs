@@ -440,16 +440,8 @@ roundToZeroTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
 
 roundHalfToZeroTo :: Natural -> Rational -> Rational
 roundHalfToZeroTo to rational
-  | rational < 0 = negate (roundPositive (negate rational))
-  | otherwise = roundPositive rational
-  where
-    s10 = 10 ^ to :: Integer
-    roundPositive positiveRational =
-      let (q, r) = quotRem (truncate (positiveRational * (s10 * 10 % 1)) :: Integer) 10
-       in (if r > 5
-             then q + 1
-             else q) %
-          s10
+  | rational < 0 = negate (roundHalfDownTo to (negate rational))
+  | otherwise = roundHalfDownTo to rational
 
 roundHalfFromZeroTo :: Natural -> Rational -> Rational
 roundHalfFromZeroTo to rational
