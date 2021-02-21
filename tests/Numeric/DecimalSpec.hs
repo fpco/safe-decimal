@@ -172,6 +172,8 @@ specBouned ::
      , Round RoundHalfUp a
      , Round RoundHalfDown a
      , Round RoundHalfEven a
+     , Round RoundHalfToZero a
+     , Round RoundHalfFromZero a
      , Round RoundDown a
      , Round RoundToZero a
      )
@@ -235,6 +237,8 @@ specRounding ::
      , Round RoundHalfUp p
      , Round RoundHalfDown p
      , Round RoundHalfEven p
+     , Round RoundHalfToZero p
+     , Round RoundHalfFromZero p
      , Round RoundDown p
      , Round RoundToZero p
      )
@@ -249,9 +253,15 @@ specRounding = do
   prop (propNamePrefix . showsDecimalType @RoundHalfEven @(s + k) @p $ "") $
     prop_Rounding @RoundHalfEven @s @k @p
     (roundHalfEvenTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundHalfToZero @(s + k) @p $ "") $
+    prop_Rounding @RoundHalfToZero @s @k @p
+    (roundHalfToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundHalfFromZero @(s + k) @p $ "") $
+    prop_Rounding @RoundHalfFromZero @s @k @p
+    (roundHalfFromZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
   prop (propNamePrefix . showsDecimalType @RoundToZero @(s + k) @p $ "") $
     prop_Rounding @RoundToZero @s @k @p
-    (roundRoundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
+    (roundToZeroTo (fromIntegral (natVal (Proxy :: Proxy s))))
   prop (propNamePrefix . showsDecimalType @RoundDown @(s + k) @p $ "") $
     prop_Rounding @RoundDown @s @k @p
     (roundFloorTo (fromIntegral (natVal (Proxy :: Proxy s))))
@@ -423,14 +433,18 @@ roundFloorTo to rational = (floor (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
-roundRoundToZeroTo :: Natural -> Rational -> Rational
-roundRoundToZeroTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
+roundToZeroTo :: Natural -> Rational -> Rational
+roundToZeroTo to rational = (truncate (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
--- Use for testing once HalfAwayFromZero is implemented
-_roundCommercial :: Natural -> Rational -> Rational
-_roundCommercial to rational
+roundHalfToZeroTo :: Natural -> Rational -> Rational
+roundHalfToZeroTo to rational
+  | rational < 0 = negate (roundHalfDownTo to (negate rational))
+  | otherwise = roundHalfDownTo to rational
+
+roundHalfFromZeroTo :: Natural -> Rational -> Rational
+roundHalfFromZeroTo to rational
   | rational < 0 = negate (roundPositive (negate rational))
   | otherwise = roundPositive rational
   where
