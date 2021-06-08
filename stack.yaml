@@ -1,4 +1,6 @@
 flags: {}
 packages:
 - .
-resolver: lts-14.20
+resolver: lts-17.14
+extra-deps:
+- doctest-0.18.1@sha256:f4d17e8739c2b97a98ec76bcba86f7097c6336bf36def795130cbc02d59b7c6d,7231
