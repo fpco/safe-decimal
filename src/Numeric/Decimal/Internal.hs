@@ -436,7 +436,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Int)) where
   {-# INLINABLE signum #-}
   abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Int8)) where
@@ -450,7 +450,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Int8)) where
   {-# INLINABLE signum #-}
   abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Int16)) where
@@ -464,7 +464,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Int16)) where
   {-# INLINABLE signum #-}
   abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Int32)) where
@@ -478,7 +478,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Int32)) where
   {-# INLINABLE signum #-}
   abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Int64)) where
@@ -492,7 +492,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Int64)) where
   {-# INLINABLE signum #-}
   abs = (>>= absDecimalBounded)
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Word)) where
@@ -506,7 +506,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Word)) where
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Word8)) where
@@ -520,7 +520,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Word8)) where
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Word16)) where
@@ -534,7 +534,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Word16)) where
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Word32)) where
@@ -548,7 +548,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Word32)) where
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Num (Arith (Decimal r s Word64)) where
@@ -562,7 +562,7 @@ instance (KnownNat s) => Num (Arith (Decimal r s Word64)) where
   {-# INLINABLE signum #-}
   abs = id
   {-# INLINABLE abs #-}
-  fromInteger = fmap Decimal . fromIntegerScaleBounded (Proxy :: Proxy s)
+  fromInteger = fromIntegerDecimalBoundedIntegral
   {-# INLINABLE fromInteger #-}
 
 instance (KnownNat s) => Fractional (Arith (Decimal r s Int)) where
@@ -586,7 +586,7 @@ instance (KnownNat s) => Fractional (Arith (Decimal r s Int16)) where
 instance (KnownNat s) => Fractional (Arith (Decimal r s Int32)) where
   (/) = bindM2 divideDecimalBoundedWithoutLoss
   {-# INLINABLE (/) #-}
-  fromRational  =fromRationalDecimalBoundedWithoutLoss
+  fromRational = fromRationalDecimalBoundedWithoutLoss
   {-# INLINABLE fromRational #-}
 
 
@@ -698,6 +698,7 @@ quotRemDecimalBounded (Decimal raw) i
       pure (Decimal q, Decimal r)
 {-# INLINABLE quotRemDecimalBounded #-}
 
+
 fromIntegerScaleBounded ::
      forall m a s. (MonadThrow m, Integral a, Bounded a, KnownNat s)
   => Proxy s
@@ -721,6 +722,10 @@ fromIntegersScaleBounded ps x y = fromIntegerBounded xs
 {-# INLINABLE fromIntegersScaleBounded #-}
 
 
+-- | Convert an Integer to a Decimal backed by a bounded integral while doing proper
+-- scaling and checking the bounds.
+--
+-- @since 0.2.0
 fromIntegerDecimalBoundedIntegral ::
      forall m r s p. (MonadThrow m, Integral p, Bounded p, KnownNat s)
   => Integer
