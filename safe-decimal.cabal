@@ -1,5 +1,5 @@
 name:           safe-decimal
-version:        0.2.0.0
+version:        0.2.1.0
 description:    Please see the README on GitHub at <https://github.com/fpco/safe-decimal#readme>
 synopsis:       Safe and very efficient arithmetic operations on fixed decimal point numbers
 category:       Math, Numeric, Numerical

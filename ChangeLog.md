@@ -1,5 +1,9 @@
 # Changelog for safe-decimal
 
+## 0.2.1
+
+* Add `RoundHalfToZero` and `RoundHalfFromZero` rounding strategies.
+
 ## 0.2.0
 
 * Add `Arith` monad and corresponding functions.
