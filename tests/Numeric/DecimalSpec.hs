@@ -285,7 +285,7 @@ prop_Rounding roundTo d =
       throwDecimal (fromRationalDecimalWithoutLoss (roundTo r))
 
 showsDecimalType ::
-     forall r (s :: Nat) p. (Typeable r, Typeable s, Typeable p)
+     forall r (s :: Nat) p. (Typeable r, KnownNat s, Typeable p)
   => ShowS
 showsDecimalType = ("(Decimal " ++)
                    . showsType @r . (' ':)
