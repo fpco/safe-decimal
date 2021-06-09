@@ -7,6 +7,7 @@ module Numeric.Decimal.BoundedArithmetic
   , arithM
   , arithMaybe
   , arithEither
+  , arithError
   -- * Bounded
   , plusBounded
   , minusBounded
@@ -20,6 +21,7 @@ module Numeric.Decimal.BoundedArithmetic
 
 import Control.Exception
 import Control.Monad.Catch
+import GHC.Stack
 
 -- | Monad for performing safe computation
 data Arith a
@@ -58,6 +60,17 @@ arithMaybe = arithM
 -- @since 0.2.0
 arithEither :: Arith a -> Either SomeException a
 arithEither = arithM
+
+
+-- | Throws a `userError` on any `Arith` failure. Should only be used as a helper for
+-- testing and development.
+--
+-- @since 0.2.1
+arithError :: HasCallStack => Arith a -> a
+arithError = \case
+  Arith a -> a
+  ArithError exc -> error $ displayException exc
+
 
 
 instance Show a => Show (Arith a) where
