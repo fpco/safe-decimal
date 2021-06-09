@@ -1,12 +1,16 @@
+{-# LANGUAGE CPP #-}
 module Main where
 
-import Build_doctests (flags, pkgs, module_sources)
-import Data.Foldable (traverse_)
+#if __GLASGOW_HASKELL__ >= 802
+
 import Test.DocTest (doctest)
 
 main :: IO ()
-main = do
-    traverse_ putStrLn args
-    doctest args
-  where
-    args = flags ++ pkgs ++ module_sources
+main = doctest ["src"]
+
+#else
+
+main :: IO ()
+main = putStrLn "\nDoctests are not supported for older ghc version\n"
+
+#endif
