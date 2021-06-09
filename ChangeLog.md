@@ -3,6 +3,8 @@
 ## 0.2.1
 
 * Add `RoundHalfToZero` and `RoundHalfFromZero` rounding strategies.
+* Conversion from `Scientific` normalizes the input and is more resilient to unbounded
+  computation for bounded `Decimal` result.
 
 ## 0.2.0
 

@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -57,9 +57,9 @@ import Control.Monad.Catch
 import Data.Coerce
 import Data.Fixed
 import Data.Int
-import Data.Word
 import Data.Proxy
 import Data.Scientific
+import Data.Word
 import GHC.TypeLits
 import Numeric.Decimal.BoundedArithmetic
 import Numeric.Decimal.Internal
@@ -641,23 +641,34 @@ fromScientificDecimal ::
      forall m r s. (MonadThrow m, KnownNat s)
   => Scientific
   -> m (Decimal r s Integer)
-fromScientificDecimal num
-  | point10 > s = throwM Underflow
-  | otherwise = pure (Decimal (coefficient num * 10 ^ (s - point10)))
+fromScientificDecimal numNonNormal
+  | exp10 > s = throwM Underflow
+  | otherwise = pure (Decimal (coefficient num * 10 ^ (s - exp10)))
   where
-      s = natVal (Proxy :: Proxy s)
-      point10 = toInteger (negate (base10Exponent num))
+    num = normalize numNonNormal
+    s = natVal (Proxy :: Proxy s)
+    exp10 = negate (toInteger (base10Exponent num))
 
--- | Convert from Scientific to Decimal while checking for Overflow/Underflow
+-- | Convert from Scientific to bounded Decimal while checking for Overflow/Underflow
 --
 -- @since 0.1.0
 fromScientificDecimalBounded ::
      forall m r s p. (MonadThrow m, Integral p, Bounded p, KnownNat s)
   => Scientific
   -> m (Decimal r s p)
-fromScientificDecimalBounded num = do
-  Decimal integer :: Decimal r s Integer <- fromScientificDecimal num
-  Decimal <$> fromIntegerBounded integer
+fromScientificDecimalBounded numNonNormal = do
+  when (coeff < toInteger (minBound :: p) || exp10 > s) $ throwM Underflow
+  when (coeff > imax || posExp10 > upperExponentBound || scaledCoeff > imax) $ throwM Overflow
+  pure (Decimal (fromInteger scaledCoeff))
+  where
+    num = normalize numNonNormal
+    s = natVal (Proxy :: Proxy s)
+    posExp10 = toInteger (base10Exponent num)
+    exp10 = negate posExp10
+    imax = toInteger (maxBound :: p)
+    coeff = coefficient num
+    scaledCoeff = coefficient num * 10 ^ (s - exp10)
+    upperExponentBound = ceiling (logBase 10 $ fromIntegral (maxBound :: p) :: Double) - s
 
 
 type family FixedScale e :: Nat
