@@ -2,6 +2,7 @@
 
 ## 0.2.1
 
+* Add `arithError`
 * Add `RoundHalfToZero` and `RoundHalfFromZero` rounding strategies.
 * Conversion from `Scientific` normalizes the input and is more resilient from unbouded
   computation for bounded `Decimal` result.
