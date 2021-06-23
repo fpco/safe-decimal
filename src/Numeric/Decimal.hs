@@ -39,6 +39,9 @@ module Numeric.Decimal
   , RoundToZero
   , Truncate
   , roundToZero
+  -- ** Round away from zero
+  , RoundFromZero
+  , roundFromZero
   -- * Operations
   , decimalList
   , sumDecimalBounded
@@ -639,6 +642,66 @@ roundToZero (Decimal x) = Decimal (quot x (10 ^ k))
   where
     k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
 {-# INLINABLE roundToZero #-}
+
+
+-- | [Round away from zero](https://en.wikipedia.org/wiki/Rounding#Rounding_away_from_zero)
+-- strategy. Also known as round towards infinity.
+--
+-- >>> :set -XDataKinds
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundFromZero @2 @Int 3.65
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundFromZero @2 @Int 3.75
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundFromZero @2 @Int 3.89
+-- Arith 3.9
+-- >>> arithRoundD @1 @RoundFromZero @2 @Int (-3.65)
+-- Arith -3.7
+--
+-- @since 0.2.2
+data RoundFromZero
+
+
+instance Round RoundFromZero Integer where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Int where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Int8 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Int16 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Int32 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Int64 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Word where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Word8 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Word16 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Word32 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundFromZero Word64 where
+  roundDecimal = roundFromZero
+  {-# INLINABLE roundDecimal #-}
+
+roundFromZero :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundFromZero (Decimal x) = Decimal (q + signum r)
+  where
+    k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+    (q, r) = quotRem x (10 ^ k)
+{-# INLINABLE roundFromZero #-}
 
 -- | /O(1)/ - Conversion of a list.
 --

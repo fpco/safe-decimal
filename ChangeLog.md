@@ -3,6 +3,7 @@
 ## 0.2.2
 
 * Add `RoundUp`/`Ceiling` rounding strategy.
+* Add `RoundFromZero` rounding strategy
 
 ## 0.2.1
 
