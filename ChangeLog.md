@@ -1,5 +1,9 @@
 # Changelog for safe-decimal
 
+## 0.2.2
+
+* Add `RoundUp`/`Ceiling` rounding strategy.
+
 ## 0.2.1
 
 * Add `arithError`

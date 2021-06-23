@@ -31,6 +31,10 @@ module Numeric.Decimal
   , RoundDown
   , Floor
   , roundDown
+  -- ** Round up
+  , RoundUp
+  , Ceiling
+  , roundUp
   -- ** Round towards zero
   , RoundToZero
   , Truncate
@@ -463,6 +467,7 @@ type Floor = RoundDown
 
 instance Round RoundDown Integer where
   roundDecimal = roundDown
+  {-# INLINABLE roundDecimal #-}
 instance Round RoundDown Int where
   roundDecimal = roundDown
   {-# INLINABLE roundDecimal #-}
@@ -503,6 +508,74 @@ roundDown (Decimal x)
     (q, r) = quotRem x (10 ^ k)
 {-# INLINABLE roundDown #-}
 
+
+
+-- | [Round up](https://en.wikipedia.org/wiki/Rounding#Rounding_up) rounding
+-- startegy. This the strategy that is implemented by `celing`. Round towards positive
+-- infinity:
+--
+-- >>> :set -XDataKinds
+-- >>> :set -XTypeApplications
+-- >>> arithRoundD @1 @RoundUp @2 @Int 3.65
+-- Arith 3.7
+-- >>> arithRoundD @1 @RoundUp @2 @Int 3.75
+-- Arith 3.8
+-- >>> arithRoundD @1 @RoundUp @2 @Int 3.89
+-- Arith 3.9
+-- >>> arithRoundD @1 @RoundUp @2 @Int (-3.65)
+-- Arith -3.6
+--
+-- @since 0.2.2
+data RoundUp
+
+-- | Synonym for round up
+--
+-- @since 0.2.2
+type Ceiling = RoundUp
+
+instance Round RoundUp Integer where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Int where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Int8 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Int16 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Int32 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Int64 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Word where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Word8 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Word16 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Word32 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+instance Round RoundUp Word64 where
+  roundDecimal = roundUp
+  {-# INLINABLE roundDecimal #-}
+
+roundUp :: forall r n k p . (Integral p, KnownNat k) => Decimal r (n + k) p -> Decimal r n p
+roundUp (Decimal x)
+  | x >= 0 && r /= 0 = Decimal (q + 1)
+  | otherwise = Decimal q
+  where
+    k = fromIntegral (natVal (Proxy :: Proxy k)) :: Int
+    (q, r) = quotRem x (10 ^ k)
+{-# INLINABLE roundUp #-}
+
 -- | [Round towards zero](https://en.wikipedia.org/wiki/Rounding#Round_towards_zero)
 -- strategy. Similar to Haskell's `truncate`. Drop the fractional digits, regardless of
 -- the sign.
@@ -529,6 +602,7 @@ type Truncate = RoundToZero
 
 instance Round RoundToZero Integer where
   roundDecimal = roundToZero
+  {-# INLINABLE roundDecimal #-}
 instance Round RoundToZero Int where
   roundDecimal = roundToZero
   {-# INLINABLE roundDecimal #-}

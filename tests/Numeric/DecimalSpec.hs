@@ -175,6 +175,7 @@ specBouned ::
      , Round RoundHalfToZero a
      , Round RoundHalfFromZero a
      , Round RoundDown a
+     , Round RoundUp a
      , Round RoundToZero a
      )
   => Proxy a
@@ -240,6 +241,7 @@ specRounding ::
      , Round RoundHalfToZero p
      , Round RoundHalfFromZero p
      , Round RoundDown p
+     , Round RoundUp p
      , Round RoundToZero p
      )
   => Spec
@@ -265,6 +267,9 @@ specRounding = do
   prop (propNamePrefix . showsDecimalType @RoundDown @(s + k) @p $ "") $
     prop_Rounding @RoundDown @s @k @p
     (roundFloorTo (fromIntegral (natVal (Proxy :: Proxy s))))
+  prop (propNamePrefix . showsDecimalType @RoundUp @(s + k) @p $ "") $
+    prop_Rounding @RoundUp @s @k @p
+    (roundCeilingTo (fromIntegral (natVal (Proxy :: Proxy s))))
   where
     propNamePrefix =
       ("Rounding to " ++) . showsTypeRep (typeRep (Proxy :: Proxy s)) . (" places " ++)
@@ -430,6 +435,11 @@ roundHalfEvenTo to rational =
 
 roundFloorTo :: Natural -> Rational -> Rational
 roundFloorTo to rational = (floor (rational * (s10 % 1)) :: Integer) % s10
+  where
+    s10 = 10 ^ to :: Integer
+
+roundCeilingTo :: Natural -> Rational -> Rational
+roundCeilingTo to rational = (ceiling (rational * (s10 % 1)) :: Integer) % s10
   where
     s10 = 10 ^ to :: Integer
 
