@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeApplications #-}
@@ -398,9 +399,7 @@ spec = do
     specRounding @4 @3 @Integer
     specRounding @4 @4 @Integer
 
-
-
-
+#if !MIN_VERSION_QuickCheck(2,15,0)
 assertException :: (NFData a, Exception exc) =>
                    (exc -> Bool) -- ^ Return True if that is the exception that was expected
                 -> a -- ^ Value that should throw an exception, when fully evaluated
@@ -421,6 +420,7 @@ assertExceptionIO isExc action =
                res `deepseq` return False) $ \exc ->
            show exc `deepseq` return (isExc exc))
     assert hasFailed
+#endif
 
 roundHalfUpTo :: Natural -> Rational -> Rational
 roundHalfUpTo to rational =

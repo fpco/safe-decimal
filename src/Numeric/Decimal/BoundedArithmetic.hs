@@ -42,6 +42,7 @@ instance Bounded a => Bounded (Arith a) where
 -- *** Exception: arithmetic underflow
 -- >>> 1.1 - 123 :: Arith (Decimal RoundDown 3 Word)
 -- ArithError arithmetic underflow
+-- ...
 --
 -- @since 0.2.0
 arithM :: MonadThrow m => Arith a -> m a

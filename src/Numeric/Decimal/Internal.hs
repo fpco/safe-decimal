@@ -993,8 +993,10 @@ signumDecimalBounded d = fromIntegerDecimalBounded $ signumDecimal (toInteger <$
 --
 -- >>> -1.28 :: Arith (Decimal RoundHalfUp 2 Int8)
 -- ArithError arithmetic overflow
+-- ...
 -- >>> negate (1.28 :: Arith (Decimal RoundHalfUp 2 Int8))
 -- ArithError arithmetic overflow
+-- ...
 -- >>> :set -XNegativeLiterals
 -- >>> -1.28 :: Arith (Decimal RoundHalfUp 2 Int8)
 -- Arith -1.28

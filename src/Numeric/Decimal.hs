@@ -846,8 +846,10 @@ fromFixedDecimal = coerce
 -- Arith 123.458
 -- >>> fromFixedDecimalBounded (123.458 :: Fixed E3) :: Arith (Decimal RoundToZero 3 Int8)
 -- ArithError arithmetic overflow
+-- ...
 -- >>> fromFixedDecimalBounded (-123.458 :: Fixed E3) :: Arith (Decimal RoundToZero 3 Word)
 -- ArithError arithmetic underflow
+-- ...
 --
 -- @since 0.2.0
 fromFixedDecimalBounded ::
